@@ -1,0 +1,19 @@
+#!/bin/sh
+
+case "$1" in
+	start)
+		printf "insmod NPU modules: "
+		insmod /usr/lib/modules/galcore.ko registerMemBase=0xffbc0000 contiguousSize=0x1000000 powerManagement=0 gpuProfiler=1 recovery=0
+		[ $? = 0 ] && echo "OK" || echo "FAIL"
+		;;
+	stop)
+		;;
+	restart|reload)
+		$0 stop
+		$0 start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+esac
+exit 0
