@@ -3,7 +3,8 @@
 case "$1" in
 	start)
 		printf "insmod NPU modules: "
-		insmod /usr/lib/modules/galcore.ko registerMemBase=0xffbc0000 contiguousSize=0x1000000 powerManagement=0 gpuProfiler=1 recovery=0
+		cp /usr/lib/cl_*.h /tmp/
+		insmod /usr/lib/modules/galcore.ko contiguousSize=0x400000 gpuProfiler=1 recovery=0 sRAMBases=0xffffffff,0xfec00000
 		[ $? = 0 ] && echo "OK" || echo "FAIL"
 		;;
 	stop)
