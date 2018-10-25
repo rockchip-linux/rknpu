@@ -6,7 +6,7 @@ case "$1" in
 		cp /usr/lib/cl_*.h /tmp/
 		insmod /usr/lib/modules/galcore.ko contiguousSize=0x400000 gpuProfiler=1 recovery=0 sRAMBases=0xffffffff,0xfec00000
 		[ $? = 0 ] && echo "OK" || echo "FAIL"
-		#start_rknn.sh &
+		start_rknn.sh &
 		;;
 	stop)
 		;;

@@ -1,0 +1,5 @@
+[gerrit]
+host=10.10.10.29
+port=29418
+project=linux/external/rknpu
+defaultbranch=master
