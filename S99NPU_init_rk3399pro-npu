@@ -4,7 +4,7 @@ case "$1" in
 	start)
 		printf "insmod NPU modules: "
 		cp /usr/lib/cl_*.h /tmp/
-		insmod /usr/lib/modules/galcore.ko contiguousSize=0x400000 gpuProfiler=1 sRAMBases=0xffffffff,0xfec00000
+		insmod /usr/lib/modules/galcore.ko contiguousSize=0x400000 gpuProfiler=1 sRAMBases=0xffffffff,0xfec08000
 		echo 792000000 > /sys/class/devfreq/ffbc0000.npu/userspace/set_freq
 		[ $? = 0 ] && echo "OK" || echo "FAIL"
 		start_rknn.sh &
