@@ -7,6 +7,7 @@ case "$1" in
 		insmod /usr/lib/modules/galcore.ko contiguousSize=0x400000 gpuProfiler=1 sRAMBases=0xffffffff,0xfec08000
 		echo 792000000 > /sys/class/devfreq/ffbc0000.npu/userspace/set_freq
 		[ $? = 0 ] && echo "OK" || echo "FAIL"
+		start_usb.sh ntb
 		start_rknn.sh &
 		;;
 	stop)

@@ -2,10 +2,14 @@
 
 case "$1" in
 adb)
-	umount /sys/kernel/config
-	umount /dev/usb-ffs/adb
+	killall adbd > /dev/null 2>&1
+	killall start_rknn.sh > /dev/null 2>&1
+	killall rknn_server > /dev/null 2>&1
 
 	echo "none" > /sys/kernel/config/usb_gadget/rockchip/UDC
+
+	umount /sys/kernel/config
+	umount /dev/usb-ffs/ntb > /dev/null 2>&1
 
 	mkdir -p /dev/usb-ffs -m 0770
 	mkdir -p /dev/usb-ffs/adb -m 0770
@@ -41,14 +45,18 @@ adb)
 	echo $UDC > /sys/kernel/config/usb_gadget/rockchip/UDC
 	# START_APP_AFTER_UDC
 
+	rm -rf /dev/usb-ffs/ntb
+
 	;;
 ntb)
 	killall adbd > /dev/null 2>&1
-
-	umount /sys/kernel/config
-	umount /dev/usb-ffs/ntb
+	killall start_rknn.sh > /dev/null 2>&1
+	killall rknn_server > /dev/null 2>&1
 
 	echo "none" > /sys/kernel/config/usb_gadget/rockchip/UDC
+
+	umount /sys/kernel/config
+	umount /dev/usb-ffs/adb > /dev/null 2>&1
 
 	mkdir -p /dev/usb-ffs -m 0770
 	mkdir -p /dev/usb-ffs/ntb -m 0770
@@ -76,6 +84,8 @@ ntb)
 	# START_APP_BEFORE_UDC
 	mkdir -p /dev/usb-ffs/ntb
 	mount -o uid=2000,gid=2000 -t functionfs ntb /dev/usb-ffs/ntb
+
+	rm -rf /dev/usb-ffs/adb
 
 	;;
 *)
