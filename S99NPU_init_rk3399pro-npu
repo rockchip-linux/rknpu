@@ -8,7 +8,6 @@ case "$1" in
 		echo 792000000 > /sys/class/devfreq/ffbc0000.npu/userspace/set_freq
 		[ $? = 0 ] && echo "OK" || echo "FAIL"
 		start_usb.sh ntb
-		start_rknn.sh &
 		;;
 	stop)
 		;;
