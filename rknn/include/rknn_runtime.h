@@ -1,6 +1,8 @@
 #ifndef RKNN_RUNTIME_H
 #define RKNN_RUNTIME_H
 
+extern "C" {
+
 /**
  * @brief RKNN上下文句柄
  */
@@ -86,5 +88,7 @@ int RKNNGetOutput(rknn_context_t context, int index, float* out_data, int out_si
  * @return int 0: 执行成功， <0: 执行失败
  */
 int RKNNRun(rknn_context_t context);
+
+}
 
 #endif //RKNN_RUNTIME_H
