@@ -1,7 +1,9 @@
 #ifndef RKNN_RUNTIME_H
 #define RKNN_RUNTIME_H
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 /**
  * @brief RKNN上下文句柄
@@ -89,6 +91,8 @@ int RKNNGetOutput(rknn_context_t context, int index, float* out_data, int out_si
  */
 int RKNNRun(rknn_context_t context);
 
+#ifdef __cplusplus
 }
+#endif
 
 #endif //RKNN_RUNTIME_H
