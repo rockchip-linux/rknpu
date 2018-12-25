@@ -179,6 +179,12 @@ typedef struct _rknn_input {
     uint32_t index;                                     /* the input index. */
     void* buf;                                          /* the input buf for index. */
     uint32_t size;                                      /* the size of input buf. */
+    uint8_t pass_through;                               /* pass through mode.
+                                                           if TRUE, the buf data is passed directly to the input node of the rknn model
+                                                                    without any conversion. the following variables do not need to be set.
+                                                           if FALSE, the buf data is converted into an input consistent with the model
+                                                                     according to the following type and fmt. so the following variables
+                                                                     need to be set.*/
     rknn_tensor_type type;                              /* the data type of input buf. */
     rknn_tensor_format fmt;                             /* the data format of input buf.
                                                            currently the internal input format of NPU is NCHW by default.
@@ -323,4 +329,3 @@ int rknn_outputs_release(rknn_context context, uint32_t n_ouputs, rknn_output ou
 #endif
 
 #endif  //_RKNN_RUNTIME_H
-
