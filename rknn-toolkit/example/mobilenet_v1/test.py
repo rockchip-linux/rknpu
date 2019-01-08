@@ -20,7 +20,6 @@ def show_outputs(outputs):
     print(top5_str)
 
 def show_perfs(perfs):
-    #total_cycles = outputs['total_cycles']
     perfs = 'perfs: {}\n'.format(outputs)
     print(perfs)
 
@@ -32,6 +31,7 @@ if __name__ == '__main__':
     # pre-process config
     print('--> config model')
     rknn.config(channel_mean_value='103.94 116.78 123.68 58.82', reorder_channel='0 1 2')
+    print('done')
 
     # Load tensorflow model
     print('--> Loading model')
@@ -57,24 +57,23 @@ if __name__ == '__main__':
         exit(ret)
     print('done')
 
-    ## Direct load rknn model
-    #print('--> Loading RKNN model')
-    #ret = rknn.load_rknn('./mobilenet_v1.rknn')
-    #if ret != 0:
-    #    print('Load mobilenet_v1.rknn failed!')
-    #    exit(ret)
-    #print('done')
-
     # Set inputs
     img = cv2.imread('./dog_224x224.jpg')
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # init runtime environment
+    print('--> Init runtime environment')
+    ret = rknn.init_runtime()
+    if ret != 0:
+        print('Init runtime environment failed')
+        exit(ret)
+    print('done')
 
     # Inference
     print('--> Running model')
     outputs = rknn.inference(inputs=[img])
     show_outputs(outputs)
     print('done')
-    #print('inference result: ', outputs)
 
     # perf
     print('--> Begin evaluate model performance')

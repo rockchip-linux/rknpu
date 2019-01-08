@@ -71,6 +71,14 @@ if __name__ == '__main__':
     img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
     img = cv2.resize(img, (INPUT_SIZE, INPUT_SIZE), interpolation=cv2.INTER_CUBIC)
 
+    # init runtime environment
+    print('--> Init runtime environment')
+    ret = rknn.init_runtime()
+    if ret != 0:
+        print('Init runtime environment failed')
+        exit(ret)
+    print('done')
+
     # Inference
     print('--> Running model')
     outputs = rknn.inference(inputs=[img])
