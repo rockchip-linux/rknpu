@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <sys/time.h>
 #include "ssd.h"
 
 #define BOX_PRIORS_TXT_PATH "./box_priors.txt"
@@ -12,6 +13,14 @@ float NMS_THRESHOLD = 0.45f;
 
 static char *labels[NUM_CLASS];
 static float box_priors[4][NUM_RESULTS];
+
+int64_t getCurrentTimeUs()
+{
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+	return tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
 
 char * readLine(FILE *fp, char *buffer, int *len)
 {
@@ -102,6 +111,10 @@ float CalculateOverlap(float xmin0, float ymin0, float xmax0, float ymax0, float
     return u <= 0.f ? 0.f : (i / u);
 }
 
+float unexpit(float y) {
+	return -1.0 * logf((1.0 / y) - 1.0);
+}
+
 float expit(float x)
 {
     return (float) (1.0 / (1.0 + expf(-x)));
@@ -131,6 +144,8 @@ void decodeCenterSizeBoxes(float* predictions, float (*boxPriors)[NUM_RESULTS])
 int filterValidResult(float * outputClasses, int (*output)[NUM_RESULTS], int numClasses, float *props)
 {
     int validCount = 0;
+	float min_score = unexpit(MIN_SCORE);
+
     // Scale them back to the input size.
     for (int i = 0; i < NUM_RESULTS; ++i) {
         float topClassScore = (float)(-1000.0);
@@ -138,17 +153,21 @@ int filterValidResult(float * outputClasses, int (*output)[NUM_RESULTS], int num
 
         // Skip the first catch-all class.
         for (int j = 1; j < numClasses; ++j) {
-            float score = expit(outputClasses[i*numClasses+j]);
+			// x and expit(x) has same monotonicity
+			// so compare x and comare expit(x) is same
+            //float score = expit(outputClasses[i*numClasses+j]);
+            float score = outputClasses[i*numClasses+j];
+
             if (score > topClassScore) {
                 topClassScoreIndex = j;
                 topClassScore = score;
             }
         }
 
-        if (topClassScore >= MIN_SCORE) {
+        if (topClassScore >= min_score) {
             output[0][validCount] = i;
             output[1][validCount] = topClassScoreIndex;
-            props[validCount] = topClassScore;
+            props[validCount] = expit(outputClasses[i*numClasses+topClassScoreIndex]);
             ++validCount;
         }
     }
@@ -190,6 +209,36 @@ int nms(int validCount, float* outputLocations, int (*output)[NUM_RESULTS])
 void sort(int output[][1917], float* props, int sz) {
     int i = 0;
     int j = 0;
+
+	if (sz < 2) {
+		return;
+	}
+
+#if 1
+    for(i = 0; i < sz-1; i++) {
+
+		int top = i;
+		for (j=i+1; j<sz; j++) {
+            if(props[top] < props[j]) {
+				top = j;
+			}
+		}
+
+		if (i != top) {
+			int tmp1 = output[0][i];
+			int tmp2 = output[1][i];
+			float prop = props[i];
+			output[0][i] = output[0][top];
+			output[1][i] = output[1][top];
+			props[i] = props[top];
+			output[0][top] = tmp1;
+			output[1][top] = tmp2;
+			props[top] = prop;
+		}
+	}
+#endif
+
+#if 0
     for(i = 0; i < sz-1; i++) {
         for(j = 0; j < sz-i-1; j++) {
             if(props[j] < props[j+1]) {
@@ -205,6 +254,7 @@ void sort(int output[][1917], float* props, int sz) {
             }
         }
     }
+#endif
 }
 
 int postProcessSSD(float * predictions, float *output_classes, int width, int heigh, detect_result_group_t *group)
@@ -241,8 +291,8 @@ int postProcessSSD(float * predictions, float *output_classes, int width, int he
     memset(props, 0, sizeof(float)*NUM_RESULTS);
 
     decodeCenterSizeBoxes(predictions, box_priors);
+
     int validCount = filterValidResult(output_classes, output, NUM_CLASS, props);
- //   printf("validCount=%d\n", validCount);
 
     if (validCount > OBJ_NUMB_MAX_SIZE) {
         printf("validCount too much !!\n");

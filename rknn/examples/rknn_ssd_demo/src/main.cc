@@ -81,6 +81,11 @@ int main(int argc, char** argv)
     const char *model_path = argv[1];
     const char *img_path = argv[2];
 
+    if (argc != 3) {
+        printf("Usage:%s model image\n", argv[0]);
+        return -1;
+    }
+
     // Load image
     cv::Mat orig_img = cv::imread(img_path, 1);
     cv::Mat img = orig_img.clone();
@@ -94,6 +99,7 @@ int main(int argc, char** argv)
     }
 
     // Load RKNN Model
+    printf("Loading model ...\n");
     model = load_model(model_path, &model_len);
     ret = rknn_init(&ctx, model, model_len, 0);
     if(ret < 0) {
