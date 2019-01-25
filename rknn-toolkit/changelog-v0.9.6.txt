@@ -1,2 +1,0 @@
-1. 新增接口get_duration_time，用于联机调试时获取模型在硬件平台RK3399Pro上的运行时间。
-2. 新增接口get_perf_detail_on_hardware，用于联机调试时获取模型在硬件平台RK3399Pro上运行时每一层的耗时情况。

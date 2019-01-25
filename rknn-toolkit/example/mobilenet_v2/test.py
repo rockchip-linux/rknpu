@@ -59,6 +59,13 @@ if __name__ == '__main__':
     img = cv2.imread('./cat_224x224.jpg')
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+    print('--> Init runtime environment')
+    ret = rknn.init_runtime()
+    if ret != 0:
+        print('Init runtime environment failed')
+        exit(ret)
+    print('done')
+
     # Inference
     print('--> Running model')
     outputs = rknn.inference(inputs=[img])
