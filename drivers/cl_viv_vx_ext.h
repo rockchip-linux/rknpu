@@ -452,8 +452,8 @@ enum eVXC_ERROR
     do {                                                               \
        int8 desc;                                                      \
        _viv_asm(COPY, desc, Image, sizeof(desc));                      \
-       _viv_asm(CLAMP0MAX, (Coord).w, (Coord).z, desc.s4);             \
-       int baseAddr =  (int)(Coord).w *desc.s5 + desc.s0;              \
+       _viv_asm(CLAMP0MAX, (Coord).w, (Coord).z, desc.s5 - 1);         \
+       int baseAddr =  (int)(Coord).w *desc.s4 + desc.s0;              \
        _viv_asm(MOV, (Coord).w, baseAddr);                             \
        VXC_OP4(img_load_3d, Dest, Image, (Coord).xyww, Offset, Info);  \
     } while (0)
@@ -461,8 +461,8 @@ enum eVXC_ERROR
     do {                                                               \
        int8 desc;                                                      \
        _viv_asm(COPY, desc, Image, sizeof(desc));                      \
-       _viv_asm(CLAMP0MAX, (Coord).w, (Coord).z, desc.s4);             \
-       int baseAddr =  (int)(Coord).w *(desc).s5 + desc.s0;            \
+       _viv_asm(CLAMP0MAX, (Coord).w, (Coord).z, desc.s5 - 1);         \
+       int baseAddr =  (int)(Coord).w *(desc).s4 + desc.s0;            \
        _viv_asm(MOV, (Coord).w, baseAddr);                             \
        VXC_OP4_NoDest(img_store_3d, Image, (Coord).xyww, Color, Info); \
     } while (0)
