@@ -24,10 +24,25 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
-#include "rknn_runtime.h"
+#include "rknn_api.h"
+
+#include "yolov3_post_process.h"
 
 using namespace std;
 using namespace cv;
+
+/*-------------------------------------------
+        Macros and Variables
+-------------------------------------------*/
+
+const string class_name[] = { "person", "bicycle", "car","motorbike ","aeroplane ","bus ","train","truck ",
+                            "boat","traffic light","fire hydrant","stop sign ","parking meter","bench","bird","cat","dog ",
+                            "horse ","sheep","cow","elephant",
+                            "bear","zebra ","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite",
+                            "baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork","knife ",
+                            "spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza ","donut","cake","chair","sofa",
+                            "pottedplant","bed","diningtable","toilet ","tvmonitor","laptop ","mouse    ","remote ","keyboard ","cell phone","microwave ",
+                            "oven ","toaster","sink","refrigerator ","book","clock","vase","scissors ","teddy bear ","hair drier", "toothbrush "};
 
 /*-------------------------------------------
                   Functions
@@ -68,8 +83,8 @@ static unsigned char *load_model(const char *filename, int *model_size)
 -------------------------------------------*/
 int main(int argc, char** argv)
 {
-    const int img_width = 224;
-    const int img_height = 224;
+    const int img_width = 416;
+    const int img_height = 416;
     const int img_channels = 3;
 
     rknn_context ctx;
@@ -159,25 +174,41 @@ int main(int argc, char** argv)
     }
 
     // Get Output
-    rknn_output outputs[1];
+    rknn_output outputs[2];
     memset(outputs, 0, sizeof(outputs));
     outputs[0].want_float = 1;
-    ret = rknn_outputs_get(ctx, 1, outputs, NULL);
+    outputs[1].want_float = 1;
+    ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
     if(ret < 0) {
         printf("rknn_outputs_get fail! ret=%d\n", ret);
         return -1;
     }
 
+    float out_pos[500*4];
+    float out_prop[500];
+    int out_label[500];
+    int obj_num = 0;
+
     // Post Process
-    for (int i = 0; i < output_attrs[0].n_elems; i++) {
-        float val = ((float*)(outputs[0].buf))[i];
-        if (val > 0.01) {
-            printf("%d - %f\n", i, val);
-        }
+    obj_num = yolov3_post_process((float *)(outputs[0].buf), (float *)(outputs[1].buf), out_pos, out_prop, out_label);
+    // Release rknn_outputs
+    rknn_outputs_release(ctx, 2, outputs);
+
+    // Draw Objects
+    for (int i = 0; i < obj_num; i++) {
+        printf("%s @ (%f %f %f %f) %f\n",
+                class_name[out_label[i]].c_str(),
+                out_pos[4*i+0], out_pos[4*i+1], out_pos[4*i+2], out_pos[4*i+3],
+                out_prop[i]);
+        int x1 = out_pos[4*i+0] * orig_img.cols;
+        int y1 = out_pos[4*i+1] * orig_img.rows;
+        int x2 = out_pos[4*i+2] * orig_img.cols;
+        int y2 = out_pos[4*i+3] * orig_img.rows;
+        rectangle(orig_img, Point(x1, y1), Point(x2, y2), Scalar(255, 0, 0, 255), 3);
+        putText(orig_img, class_name[out_label[i]].c_str(), Point(x1, y1 - 12), 1, 2, Scalar(0, 255, 0, 255));
     }
 
-    // Release rknn_outputs
-    rknn_outputs_release(ctx, 1, outputs);
+    imwrite("./out.jpg", orig_img);
 
     // Release
     if(ctx >= 0) {

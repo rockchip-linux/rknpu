@@ -24,25 +24,12 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
-#include "rknn_runtime.h"
+#include "rknn_api.h"
 
-#include "yolov3_post_process.h"
+#include "ssd.h"
 
 using namespace std;
 using namespace cv;
-
-/*-------------------------------------------
-        Macros and Variables
--------------------------------------------*/
-
-const string class_name[] = { "person", "bicycle", "car","motorbike ","aeroplane ","bus ","train","truck ",
-                            "boat","traffic light","fire hydrant","stop sign ","parking meter","bench","bird","cat","dog ",
-                            "horse ","sheep","cow","elephant",
-                            "bear","zebra ","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite",
-                            "baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork","knife ",
-                            "spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza ","donut","cake","chair","sofa",
-                            "pottedplant","bed","diningtable","toilet ","tvmonitor","laptop ","mouse    ","remote ","keyboard ","cell phone","microwave ",
-                            "oven ","toaster","sink","refrigerator ","book","clock","vase","scissors ","teddy bear ","hair drier", "toothbrush "};
 
 /*-------------------------------------------
                   Functions
@@ -77,14 +64,13 @@ static unsigned char *load_model(const char *filename, int *model_size)
     return model;
 }
 
-
 /*-------------------------------------------
                   Main Function
 -------------------------------------------*/
 int main(int argc, char** argv)
 {
-    const int img_width = 416;
-    const int img_height = 416;
+    const int img_width = 300;
+    const int img_height = 300;
     const int img_channels = 3;
 
     rknn_context ctx;
@@ -94,6 +80,11 @@ int main(int argc, char** argv)
 
     const char *model_path = argv[1];
     const char *img_path = argv[2];
+
+    if (argc != 3) {
+        printf("Usage:%s model image\n", argv[0]);
+        return -1;
+    }
 
     // Load image
     cv::Mat orig_img = cv::imread(img_path, 1);
@@ -108,6 +99,7 @@ int main(int argc, char** argv)
     }
 
     // Load RKNN Model
+    printf("Loading model ...\n");
     model = load_model(model_path, &model_len);
     ret = rknn_init(&ctx, model, model_len, 0);
     if(ret < 0) {
@@ -184,28 +176,25 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    float out_pos[500*4];
-    float out_prop[500];
-    int out_label[500];
-    int obj_num = 0;
-
     // Post Process
-    obj_num = yolov3_post_process((float *)(outputs[0].buf), (float *)(outputs[1].buf), out_pos, out_prop, out_label);
+    detect_result_group_t detect_result_group;
+    postProcessSSD((float *)(outputs[1].buf), (float *)(outputs[0].buf), orig_img.cols, orig_img.rows, &detect_result_group);
     // Release rknn_outputs
     rknn_outputs_release(ctx, 2, outputs);
 
     // Draw Objects
-    for (int i = 0; i < obj_num; i++) {
-        printf("%s @ (%f %f %f %f) %f\n",
-                class_name[out_label[i]].c_str(),
-                out_pos[4*i+0], out_pos[4*i+1], out_pos[4*i+2], out_pos[4*i+3],
-                out_prop[i]);
-        int x1 = out_pos[4*i+0] * orig_img.cols;
-        int y1 = out_pos[4*i+1] * orig_img.rows;
-        int x2 = out_pos[4*i+2] * orig_img.cols;
-        int y2 = out_pos[4*i+3] * orig_img.rows;
+    for (int i = 0; i < detect_result_group.count; i++) {
+        detect_result_t *det_result = &(detect_result_group.results[i]);
+        printf("%s @ (%d %d %d %d) %f\n",
+                det_result->name,
+                det_result->box.left, det_result->box.top, det_result->box.right, det_result->box.bottom,
+                det_result->prop);
+        int x1 = det_result->box.left;
+        int y1 = det_result->box.top;
+        int x2 = det_result->box.right;
+        int y2 = det_result->box.bottom;
         rectangle(orig_img, Point(x1, y1), Point(x2, y2), Scalar(255, 0, 0, 255), 3);
-        putText(orig_img, class_name[out_label[i]].c_str(), Point(x1, y1 - 12), 1, 2, Scalar(0, 255, 0, 255));
+        putText(orig_img, det_result->name, Point(x1, y1 - 12), 1, 2, Scalar(0, 255, 0, 255));
     }
 
     imwrite("./out.jpg", orig_img);
