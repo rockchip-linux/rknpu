@@ -68,10 +68,10 @@ int readLines(const char *fileName, char *lines[], int max_line)
 	return i;
 }
 
-int loadLabelName(const char* locationFilename, char* labels[])
+int loadLabelName(const char* locationFilename, char* label[])
 {
 	printf("ssd - loadLabelName");
-	readLines(locationFilename, labels, NUM_CLASS);
+	readLines(locationFilename, label, NUM_CLASS);
     return 0;
 }
 
@@ -204,6 +204,7 @@ int nms(int validCount, float* outputLocations, int (*output)[NUM_RESULTS])
             }
         }
     }
+    return 0;
 }
 
 void sort(int output[][1917], float* props, int sz) {
@@ -335,4 +336,5 @@ int postProcessSSD(float * predictions, float *output_classes, int width, int he
     }
 
     group->count = last_count;
+    return 0;
 }
