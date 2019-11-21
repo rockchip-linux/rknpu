@@ -5,8 +5,9 @@ case "$1" in
 		printf "insmod NPU modules: "
 		cp /usr/lib/cl_*.h /tmp/
 		insmod /usr/lib/modules/galcore.ko contiguousSize=0x400000 gpuProfiler=1 sRAMBases=0xffffffffffffffff,0xfec10000
-
-		echo 792000000 > /sys/class/devfreq/ffbc0000.npu/userspace/set_freq
+		unset MAX_FREQ
+		read  MAX_FREQ < /sys/class/devfreq/ffbc0000.npu/max_freq
+		echo  $MAX_FREQ > /sys/class/devfreq/ffbc0000.npu/userspace/set_freq
 		[ $? = 0 ] && echo "OK" || echo "FAIL"
 		start_rknn.sh &
 		;;
