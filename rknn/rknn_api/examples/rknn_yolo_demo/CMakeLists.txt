@@ -4,23 +4,33 @@ project(rknn_yolo_demo_linux)
 
 set(CMAKE_SYSTEM_NAME Linux)
 
-set(GCC_COMPILER_PATH ${CMAKE_SOURCE_DIR}/../../../../../../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu)
+# for aarch64
+set(CROSS_COMPILE_TOOL ${CMAKE_SOURCE_DIR}/../../../../../../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu)
 
-set(CMAKE_C_COMPILER ${GCC_COMPILER_PATH}/bin/aarch64-linux-gnu-gcc)
-set(CMAKE_CXX_COMPILER ${GCC_COMPILER_PATH}/bin/aarch64-linux-gnu-g++)
+# for armhf
+# set(CROSS_COMPILE_TOOL ${CMAKE_SOURCE_DIR}/../../../../../../prebuilts/gcc/linux-x86/arm/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf)
+
+set(CMAKE_C_COMPILER ${CROSS_COMPILE_TOOL}-gcc)
+set(CMAKE_CXX_COMPILER ${CROSS_COMPILE_TOOL}-g++)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
+if (CMAKE_C_COMPILER MATCHES "aarch64")
+  set(LIB_ARCH lib64)
+else()
+  set(LIB_ARCH lib)
+endif()
+
 # rknn api
-set(RKNN_API_PATH ${CMAKE_SOURCE_DIR}/../libs/librknn_api)
+set(RKNN_API_PATH ${CMAKE_SOURCE_DIR}/../../librknn_api)
 include_directories(${RKNN_API_PATH}/include)
-set(RKNN_API_LIB ${RKNN_API_PATH}/lib64/librknn_api.so)
+set(RKNN_API_LIB ${RKNN_API_PATH}/${LIB_ARCH}/librknn_api.so)
 
 # opencv
 set(OPENCV_PATH ${CMAKE_SOURCE_DIR}/../libs/opencv)
 include_directories(${OPENCV_PATH}/include)
-file(GLOB OPENCV_LIBS ${OPENCV_PATH}/lib64/*.so*)
+file(GLOB OPENCV_LIBS ${OPENCV_PATH}/${LIB_ARCH}/*.so*)
 
 set(CMAKE_INSTALL_RPATH "lib")
 

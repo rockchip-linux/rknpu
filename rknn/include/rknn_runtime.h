@@ -67,7 +67,11 @@ extern "C" {
 #define RKNN_MAX_NAME_LEN                       256     /* maximum name lenth of tensor. */
 
 
+#ifdef __arm__
+typedef uint32_t rknn_context;
+#else
 typedef uint64_t rknn_context;
+#endif
 
 
 /*
