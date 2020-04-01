@@ -1,1 +1,2 @@
 linux-aarch64-mini and linux-armhf-mini only support rknn models with precompiled mode
+linux-armhf-puma for rv1109/rv1126
