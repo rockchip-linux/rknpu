@@ -1,2 +1,5 @@
-linux-aarch64-mini and linux-armhf-mini only support rknn models with precompiled mode
-linux-armhf-puma for rv1109/rv1126
+Mini driver (folder name contains mini) only support rknn models with precompiled mode.
+
+linux-aarch64: RK1808
+linux-arm: RK1806
+linux-armhf-puma: RV1109/RV1126
