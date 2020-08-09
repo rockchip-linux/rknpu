@@ -21,8 +21,8 @@
 #include <sys/time.h>
 
 #include "opencv2/core/core.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
 
 #include "rknn_api.h"
 
@@ -68,9 +68,9 @@ static unsigned char *load_model(const char *filename, int *model_size)
 -------------------------------------------*/
 int main(int argc, char** argv)
 {
-    const int img_width = 224;
-    const int img_height = 224;
-    const int img_channels = 3;
+    const int MODEL_IN_WIDTH = 224;
+    const int MODEL_IN_HEIGHT = 224;
+    const int MODEL_IN_CHANNELS = 3;
 
     rknn_context ctx;
     int ret;
@@ -81,16 +81,19 @@ int main(int argc, char** argv)
     const char *img_path = argv[2];
 
     // Load image
-    cv::Mat orig_img = cv::imread(img_path, 1);
-    cv::Mat img = orig_img.clone();
+    cv::Mat orig_img = imread(img_path, cv::IMREAD_COLOR);
     if(!orig_img.data) {
         printf("cv::imread %s fail!\n", img_path);
         return -1;
     }
-    if(orig_img.cols != img_width || orig_img.rows != img_height) {
-        printf("resize %d %d to %d %d\n", orig_img.cols, orig_img.rows, img_width, img_height);
-        cv::resize(orig_img, img, cv::Size(img_width, img_height), (0, 0), (0, 0), cv::INTER_LINEAR);
+
+    cv::Mat img = orig_img.clone();
+    if(orig_img.cols != MODEL_IN_WIDTH || orig_img.rows != MODEL_IN_HEIGHT) {
+        printf("resize %d %d to %d %d\n", orig_img.cols, orig_img.rows, MODEL_IN_WIDTH, MODEL_IN_HEIGHT);
+        cv::resize(orig_img, img, cv::Size(MODEL_IN_WIDTH, MODEL_IN_HEIGHT), (0, 0), (0, 0), cv::INTER_LINEAR);
     }
+
+    cv::cvtColor(img, img, COLOR_BGR2RGB);
 
     // Load RKNN Model
     model = load_model(model_path, &model_len);

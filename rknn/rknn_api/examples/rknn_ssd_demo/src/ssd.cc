@@ -5,8 +5,8 @@
 #include <sys/time.h>
 #include "ssd.h"
 
-#define BOX_PRIORS_TXT_PATH "./box_priors.txt"
-#define LABEL_NALE_TXT_PATH "./coco_labels_list.txt"
+#define BOX_PRIORS_TXT_PATH "./model/box_priors.txt"
+#define LABEL_NALE_TXT_PATH "./model/coco_labels_list.txt"
 
 float MIN_SCORE = 0.4f;
 float NMS_THRESHOLD = 0.45f;
@@ -70,7 +70,7 @@ int readLines(const char *fileName, char *lines[], int max_line)
 
 int loadLabelName(const char* locationFilename, char* label[])
 {
-	printf("ssd - loadLabelName");
+	printf("ssd - loadLabelName %s\n", locationFilename);
 	readLines(locationFilename, label, NUM_CLASS);
     return 0;
 }

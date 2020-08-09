@@ -21,8 +21,8 @@
 #include <sys/time.h>
 
 #include "opencv2/core/core.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
 
 #include "rknn_api.h"
 
@@ -178,7 +178,7 @@ int main(int argc, char** argv)
 
     // Post Process
     detect_result_group_t detect_result_group;
-    postProcessSSD((float *)(outputs[1].buf), (float *)(outputs[0].buf), orig_img.cols, orig_img.rows, &detect_result_group);
+    postProcessSSD((float *)(outputs[0].buf), (float *)(outputs[1].buf), orig_img.cols, orig_img.rows, &detect_result_group);
     // Release rknn_outputs
     rknn_outputs_release(ctx, 2, outputs);
 
