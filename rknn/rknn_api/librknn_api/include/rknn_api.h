@@ -60,10 +60,14 @@ extern "C" {
 #define RKNN_ERR_DEVICE_UNMATCH                 -10     /* the device is unmatch, please update rknn sdk
                                                            and npu driver/firmware. */
 #define RKNN_ERR_INCOMPATILE_PRE_COMPILE_MODEL  -11     /* This RKNN model use pre_compile mode, but not compatible with current driver. */
+#define RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION  -12     /* This RKNN model set optimization level, but not compatible with current driver. */
+#define RKNN_ERR_TARGET_PLATFORM_UNMATCH        -13     /* This RKNN model set target platform, but not compatible with current platform. */
+
 /*
     Definition for tensor
 */
 #define RKNN_MAX_DIMS                           16      /* maximum dimension of tensor. */
+#define RKNN_MAX_NUM_CHANNEL                    15      /* maximum channel number of input tensor. */
 #define RKNN_MAX_NAME_LEN                       256     /* maximum name lenth of tensor. */
 
 
