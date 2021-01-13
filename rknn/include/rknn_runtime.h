@@ -62,12 +62,12 @@ extern "C" {
 #define RKNN_ERR_INCOMPATILE_PRE_COMPILE_MODEL  -11     /* This RKNN model use pre_compile mode, but not compatible with current driver. */
 #define RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION  -12     /* This RKNN model set optimization level, but not compatible with current driver. */
 #define RKNN_ERR_TARGET_PLATFORM_UNMATCH        -13     /* This RKNN model set target platform, but not compatible with current platform. */
+#define RKNN_ERR_NON_PRE_COMPILED_MODEL_ON_MINI_DRIVER -14  /* This RKNN model is not a pre-compiled model, but the npu driver is mini driver. */
 
 /*
     Definition for tensor
 */
 #define RKNN_MAX_DIMS                           16      /* maximum dimension of tensor. */
-#define RKNN_MAX_NUM_CHANNEL                    15      /* maximum channel number of input tensor. */
 #define RKNN_MAX_NAME_LEN                       256     /* maximum name lenth of tensor. */
 
 
@@ -181,6 +181,19 @@ typedef struct _rknn_sdk_version {
 } rknn_sdk_version;
 
 /*
+    the memory information of tensor.
+*/
+typedef struct _rknn_tensor_memory {
+    void*       logical_addr;                           /* the virtual address of tensor buffer. */
+    uint64_t    physical_addr;                          /* the physical address of tensor buffer. */
+    int32_t     fd;                                     /* the fd of tensor buffer. */
+    uint32_t    size;                                   /* the size of tensor buffer. */
+    uint32_t    handle;                                 /* the handle tensor buffer. */
+    void *      priv_data;                              /* the data which is reserved. */
+    uint64_t reserved_flag;                             /* the flag which is reserved. */
+} rknn_tensor_mem;
+
+/*
     the input information for rknn_input_set.
 */
 typedef struct _rknn_input {
@@ -287,6 +300,50 @@ int rknn_query(rknn_context context, rknn_query_cmd cmd, void* info, uint32_t si
 int rknn_inputs_set(rknn_context context, uint32_t n_inputs, rknn_input inputs[]);
 
 
+/*  rknn_inputs_map
+
+    map inputs tensor memory information by input index of rknn model.
+    inputs information see rknn_input.
+
+    input:
+        rknn_context context        the handle of context.
+        uint32_t n_inputs           the number of inputs.
+        rknn_tensor_mem mem[]       the array of tensor memory information
+    return:
+        int                         error code
+*/
+int rknn_inputs_map(rknn_context context, uint32_t n_inputs, rknn_tensor_mem mem[]);
+
+
+/*  rknn_inputs_sync
+
+    synchronize inputs tensor buffer by input index of rknn model.
+
+    input:
+        rknn_context context        the handle of context.
+        uint32_t n_inputs           the number of inputs.
+        rknn_tensor_mem mem[]       the array of tensor memory information
+    return:
+        int                         error code
+*/
+int rknn_inputs_sync(rknn_context context, uint32_t n_inputs, rknn_tensor_mem mem[]);
+
+
+/*  rknn_inputs_unmap
+
+    unmap inputs tensor memory information by input index of rknn model.
+    inputs information see rknn_input.
+
+    input:
+        rknn_context context        the handle of context.
+        uint32_t n_inputs           the number of inputs.
+        rknn_tensor_mem mem[]       the array of tensor memory information
+    return:
+        int                         error code
+*/
+int rknn_inputs_unmap(rknn_context context, uint32_t n_inputs, rknn_tensor_mem mem[]);
+
+
 /*  rknn_run
 
     run the model to execute inference.
@@ -328,9 +385,51 @@ int rknn_outputs_get(rknn_context context, uint32_t n_outputs, rknn_output outpu
         uint32_t n_ouputs           the number of outputs.
         rknn_output outputs[]       the arrays of output.
     return:
-        int                     error code
+        int                         error code
 */
 int rknn_outputs_release(rknn_context context, uint32_t n_ouputs, rknn_output outputs[]);
+
+
+/*  rknn_outputs_map
+
+    map the model output tensors memory information.
+    The difference between this function and "rknn_outputs_get" is
+    that it directly maps the model output tensor memory location to the user.
+
+    input:
+        rknn_context context        the handle of context.
+        uint32_t n_outputs          the number of outputs.
+        rknn_tensor_mem mem[]       the array of tensor memory information
+    return:
+        int                         error code.
+*/
+int rknn_outputs_map(rknn_context context, uint32_t n_outputs, rknn_tensor_mem mem[]);
+
+/*  rknn_outputs_sync
+
+    synchronize the output tensors buffer to ensure cache cohenrency, wait the inference to finish.
+
+    input:
+        rknn_context context        the handle of context.
+        uint32_t n_outputs          the number of outputs.
+        rknn_tensor_mem mem[]       the array of tensor memory information
+    return:
+        int                         error code.
+*/
+int rknn_outputs_sync(rknn_context context, uint32_t n_outputs, rknn_tensor_mem mem[]);
+
+/*  rknn_outputs_unmap
+
+    unmap the outputs memory information that get by rknn_outputs_map.
+
+    input:
+        rknn_context context        the handle of context.
+        uint32_t n_ouputs           the number of outputs.
+        rknn_tensor_mem mem[]       the array of tensor memory information
+    return:
+        int                         error code
+*/
+int rknn_outputs_unmap(rknn_context context, uint32_t n_ouputs, rknn_tensor_mem mem[]);
 
 #ifdef __cplusplus
 } //extern "C"

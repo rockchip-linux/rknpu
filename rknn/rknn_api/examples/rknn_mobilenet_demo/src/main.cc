@@ -1,14 +1,16 @@
-/****************************************************************************
-*
-*    Copyright (c) 2017 - 2018 by Rockchip Corp.  All rights reserved.
-*
-*    The material in this file is confidential and contains trade secrets
-*    of Rockchip Corporation. This is proprietary information owned by
-*    Rockchip Corporation. No part of this work may be disclosed,
-*    reproduced, copied, transmitted, or used in any way for any purpose,
-*    without the express written permission of Rockchip Corporation.
-*
-*****************************************************************************/
+// Copyright (c) 2021 by Rockchip Electronics Co., Ltd. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /*-------------------------------------------
                 Includes
@@ -62,6 +64,43 @@ static unsigned char *load_model(const char *filename, int *model_size)
     return model;
 }
 
+static int rknn_GetTop
+    (
+    float *pfProb,
+    float *pfMaxProb,
+    uint32_t *pMaxClass,
+    uint32_t outputCount,
+    uint32_t topNum
+    )
+{
+    uint32_t i, j;
+
+    #define MAX_TOP_NUM 20
+    if (topNum > MAX_TOP_NUM) return 0;
+
+    memset(pfMaxProb, 0, sizeof(float) * topNum);
+    memset(pMaxClass, 0xff, sizeof(float) * topNum);
+
+    for (j = 0; j < topNum; j++)
+    {
+        for (i=0; i<outputCount; i++)
+        {
+            if ((i == *(pMaxClass+0)) || (i == *(pMaxClass+1)) || (i == *(pMaxClass+2)) ||
+                (i == *(pMaxClass+3)) || (i == *(pMaxClass+4)))
+            {
+                continue;
+            }
+
+            if (pfProb[i] > *(pfMaxProb+j))
+            {
+                *(pfMaxProb+j) = pfProb[i];
+                *(pMaxClass+j) = i;
+            }
+        }
+    }
+
+    return 1;
+}
 
 /*-------------------------------------------
                   Main Function
@@ -172,12 +211,21 @@ int main(int argc, char** argv)
     }
 
     // Post Process
-    for (int i = 0; i < output_attrs[0].n_elems; i++) {
-        float val = ((float*)(outputs[0].buf))[i];
-        if (val > 0.01) {
-            printf("%d - %f\n", i, val);
-        }
-    }
+    for (int i = 0; i < io_num.n_output; i++)
+    {
+		uint32_t MaxClass[5];
+		float fMaxProb[5];
+		float *buffer = (float *)outputs[i].buf;
+		uint32_t sz = outputs[i].size/4;
+
+		rknn_GetTop(buffer, fMaxProb, MaxClass, sz, 5);
+
+		printf(" --- Top5 ---\n");
+		for(int i=0; i<5; i++)
+		{
+			printf("%3d: %8.6f\n", MaxClass[i], fMaxProb[i]);
+		}
+	}
 
     // Release rknn_outputs
     rknn_outputs_release(ctx, 1, outputs);
