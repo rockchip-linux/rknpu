@@ -130,6 +130,11 @@ int main
     pre_process_y(y,DIM,BATCH_SIZE,square_y);
 
     rknn_matmul_handle_t handle= rknn_matmul_load(x,y, 1, DIM, BATCH_SIZE, dtype);
+    if (handle == NULL)
+    {
+        fprintf(stderr, "rknn_matmul_load failed.\n");
+        return -1;
+    }
     
     //loop for matmul
     gettimeofday(&start_time, NULL);
