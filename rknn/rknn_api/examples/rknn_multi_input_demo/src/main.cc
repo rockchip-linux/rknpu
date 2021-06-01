@@ -19,15 +19,16 @@
 #include <fstream>
 #include <iostream>
 #include <sys/time.h>
+#include <vector>
 
-#include "opencv2/core/core.hpp"
-#include "opencv2/imgproc.hpp"
-#include "opencv2/imgcodecs.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include <stb/stb_image_resize.h>
 
 #include "rknn_api.h"
 
 using namespace std;
-using namespace cv;
 
 #define DEMO_INPUT_NUM 4
 
@@ -68,6 +69,64 @@ static unsigned char *load_model(const char *filename, int *model_size)
     return model;
 }
 
+static unsigned char *load_image(const char *image_path, rknn_tensor_attr *input_attr)
+{
+    int req_height = 0;
+    int req_width = 0;
+    int req_channel = 0;
+
+    switch (input_attr->fmt)
+    {
+    case RKNN_TENSOR_NHWC:
+        req_height = input_attr->dims[2];
+        req_width = input_attr->dims[1];
+        req_channel = input_attr->dims[0];
+        break;
+    case RKNN_TENSOR_NCHW:
+        req_height = input_attr->dims[1];
+        req_width = input_attr->dims[0];
+        req_channel = input_attr->dims[2];
+        break;
+    default:
+        printf("meet unsupported layout\n");
+        return NULL;
+    }
+
+    printf("w=%d,h=%d,c=%d, fmt=%d\n", req_width, req_height, req_channel, input_attr->fmt);
+
+    int height = 0;
+    int width = 0;
+    int channel = 0;
+
+    unsigned char *image_data = stbi_load(image_path, &width, &height, &channel, req_channel);
+    if (image_data == NULL)
+    {
+        printf("load image failed!\n");
+        return NULL;
+    }
+
+    if (width != req_width || height != req_height)
+    {
+        unsigned char *image_resized = (unsigned char *)STBI_MALLOC(req_width * req_height * req_channel);
+        if (!image_resized)
+        {
+            printf("malloc image failed!\n");
+            STBI_FREE(image_data);
+            return NULL;
+        }
+        if (stbir_resize_uint8(image_data, width, height, 0, image_resized, req_width, req_height, 0, channel) != 1)
+        {
+            printf("resize image failed!\n");
+            STBI_FREE(image_data);
+            return NULL;
+        }
+        STBI_FREE(image_data);
+        image_data = image_resized;
+    }
+
+    return image_data;
+}
+
 /*-------------------------------------------
                   Main Function
 -------------------------------------------*/
@@ -83,21 +142,6 @@ int main(int argc, char **argv)
 
     const char *model_path = argv[1];
     const char *img_path = argv[2];
-
-    // Load image
-    cv::Mat orig_img = imread(img_path, cv::IMREAD_GRAYSCALE);
-    if (!orig_img.data)
-    {
-        printf("cv::imread %s fail!\n", img_path);
-        return -1;
-    }
-
-    cv::Mat img = orig_img.clone();
-    if (orig_img.cols != MODEL_IN_WIDTH || orig_img.rows != MODEL_IN_HEIGHT)
-    {
-        printf("resize %d %d to %d %d\n", orig_img.cols, orig_img.rows, MODEL_IN_WIDTH, MODEL_IN_HEIGHT);
-        cv::resize(orig_img, img, cv::Size(MODEL_IN_WIDTH, MODEL_IN_HEIGHT), (0, 0), (0, 0), cv::INTER_LINEAR);
-    }
 
     // Load RKNN Model
     model = load_model(model_path, &model_len);
@@ -152,7 +196,7 @@ int main(int argc, char **argv)
     // Set Input struct
     rknn_input inputs[DEMO_INPUT_NUM];
     memset(inputs, 0, DEMO_INPUT_NUM * sizeof(rknn_input));
-    std::vector<cv::Mat> imgs;
+    std::vector<unsigned char *> imgs;
     for (int i = 0; i < io_num.n_input; ++i)
     {
         int channel = 0;
@@ -165,15 +209,15 @@ int main(int argc, char **argv)
             channel = input_attrs[i].dims[0];
         }
         //convert single channel to multi channels
-        cv::Mat m(MODEL_IN_HEIGHT, MODEL_IN_WIDTH, CV_8UC(channel));
-        std::vector<cv::Mat> vChannels;
-        for (int j = 0; j < channel; ++j)
+        // Load image
+        unsigned char *input_data = NULL;
+        input_data = load_image(img_path, &input_attrs[0]);
+        if (!input_data)
         {
-            vChannels.push_back(img);
+            return -1;
         }
-        cv::merge(vChannels, m);
-        imgs.push_back(m);
-        int img_size = m.cols * m.rows * m.channels();
+        imgs.push_back(input_data);
+        int img_size = input_attrs[0].size;
         inputs[i].index = i;
         inputs[i].type = RKNN_TENSOR_UINT8;
         inputs[i].size = img_size;
@@ -181,7 +225,7 @@ int main(int argc, char **argv)
     }
     for (int i = 0; i < io_num.n_input; ++i)
     {
-        inputs[i].buf = imgs[i].data;
+        inputs[i].buf = imgs[i];
     }
 
     ret = rknn_inputs_set(ctx, io_num.n_input, inputs);
@@ -230,6 +274,10 @@ int main(int argc, char **argv)
     if (model)
     {
         free(model);
+    }
+    for (auto d : imgs)
+    {
+        stbi_image_free(d);
     }
 
     return 0;

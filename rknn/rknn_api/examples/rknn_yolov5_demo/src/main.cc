@@ -20,12 +20,18 @@
 #include <string.h>
 #include <sys/time.h>
 #include <dlfcn.h>
+#include <vector>
 
 #define _BASETSD_H
 
-#include "opencv2/core/core.hpp"
-#include "opencv2/imgcodecs.hpp"
-#include "opencv2/imgproc.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include <stb/stb_image_resize.h>
+
+#undef cimg_display
+#define cimg_display 0
+#include "CImg/CImg.h"
 
 #include "drm_func.h"
 #include "rga_func.h"
@@ -33,6 +39,8 @@
 #include "postprocess.h"
 
 #define PERF_WITH_POST 1
+
+using namespace cimg_library;
 /*-------------------------------------------
                   Functions
 -------------------------------------------*/
@@ -112,6 +120,48 @@ static int saveFloat(const char *file_name, float *output, int element_size)
     return 0;
 }
 
+static unsigned char *load_image(const char *image_path, int *org_height, int *org_width, int *org_ch, rknn_tensor_attr *input_attr)
+{
+    int req_height = 0;
+    int req_width = 0;
+    int req_channel = 0;
+
+    switch (input_attr->fmt)
+    {
+    case RKNN_TENSOR_NHWC:
+        req_height = input_attr->dims[2];
+        req_width = input_attr->dims[1];
+        req_channel = input_attr->dims[0];
+        break;
+    case RKNN_TENSOR_NCHW:
+        req_height = input_attr->dims[1];
+        req_width = input_attr->dims[0];
+        req_channel = input_attr->dims[2];
+        break;
+    default:
+        printf("meet unsupported layout\n");
+        return NULL;
+    }
+
+    printf("w=%d,h=%d,c=%d, fmt=%d\n", req_width, req_height, req_channel, input_attr->fmt);
+
+    int height = 0;
+    int width = 0;
+    int channel = 0;
+
+    unsigned char *image_data = stbi_load(image_path, &width, &height, &channel, req_channel);
+    if (image_data == NULL)
+    {
+        printf("load image failed!\n");
+        return NULL;
+    }
+    *org_width = width;
+    *org_height = height;
+    *org_ch = channel;
+
+    return image_data;
+}
+
 /*-------------------------------------------
                   Main Functions
 -------------------------------------------*/
@@ -140,23 +190,18 @@ int main(int argc, char **argv)
 
     if (argc != 3)
     {
-        printf("Usage: %s <rknn model> <jpg> \n", argv[0]);
+        printf("Usage: %s <rknn model> <bmp> \n", argv[0]);
         return -1;
     }
 
     model_name = (char *)argv[1];
     char *image_name = argv[2];
 
-    printf("Read %s ...\n", image_name);
-    cv::Mat orig_img = cv::imread(image_name, 1);
-    if (!orig_img.data)
+    if (strstr(image_name, ".jpg") != NULL || strstr(image_name, ".png") != NULL)
     {
-        printf("cv::imread %s fail!\n", image_name);
+        printf("Error: read %s failed! only support .bmp format image\n",image_name);
         return -1;
     }
-    img_width = orig_img.cols;
-    img_height = orig_img.rows;
-    printf("img width = %d, img height = %d\n", img_width, img_height);
 
     /* Create the neural network */
     printf("Loading mode...\n");
@@ -234,6 +279,15 @@ int main(int argc, char **argv)
     printf("model input height=%d, width=%d, channel=%d\n", height, width,
            channel);
 
+    // Load image
+    CImg<unsigned char> img(image_name);
+    unsigned char *input_data = NULL;
+    input_data = load_image(image_name, &img_height, &img_width, &img_channel, &input_attrs[0]);
+    if (!input_data)
+    {
+        return -1;
+    }
+
     rknn_input inputs[1];
     memset(inputs, 0, sizeof(inputs));
     inputs[0].index = 0;
@@ -241,12 +295,12 @@ int main(int argc, char **argv)
     inputs[0].size = width * height * channel;
     inputs[0].fmt = RKNN_TENSOR_NHWC;
     inputs[0].pass_through = 0;
-    
+
     // DRM alloc buffer
     drm_fd = drm_init(&drm_ctx);
     drm_buf = drm_buf_alloc(&drm_ctx, drm_fd, img_width, img_height, channel * 8,
                             &buf_fd, &handle, &actual_size);
-    memcpy(drm_buf, orig_img.data, img_width * img_height * channel);
+    memcpy(drm_buf, input_data, img_width * img_height * channel);
     void *resize_buf = malloc(height * width * channel);
 
     // init rga context
@@ -285,6 +339,7 @@ int main(int argc, char **argv)
                  conf_threshold, nms_threshold, vis_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
 
     // Draw Objects
+    const unsigned char blue[] = {0, 0, 255};
     for (int i = 0; i < detect_result_group.count; i++)
     {
         detect_result_t *det_result = &(detect_result_group.results[i]);
@@ -296,11 +351,11 @@ int main(int argc, char **argv)
         int y1 = det_result->box.top;
         int x2 = det_result->box.right;
         int y2 = det_result->box.bottom;
-        rectangle(orig_img, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255, 0, 0, 255), 3);
-        putText(orig_img, det_result->name, cv::Point(x1, y1 + 12), 1, 2, cv::Scalar(0, 255, 0, 255));
+        //draw box
+        img.draw_rectangle(x1, y1, x2, y2, blue, 1, ~0U);
+        img.draw_text(x1, y1 - 12, det_result->name, blue);
     }
-
-    imwrite("./out.jpg", orig_img);
+    img.save("./out.bmp");
     ret = rknn_outputs_release(ctx, io_num.n_output, outputs);
 
     // loop test
@@ -314,12 +369,12 @@ int main(int argc, char **argv)
         ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
 #if PERF_WITH_POST
         post_process((uint8_t *)outputs[0].buf, (uint8_t *)outputs[1].buf, (uint8_t *)outputs[2].buf, height, width,
-                    conf_threshold, nms_threshold, vis_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
+                     conf_threshold, nms_threshold, vis_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
 #endif
         ret = rknn_outputs_release(ctx, io_num.n_output, outputs);
     }
     gettimeofday(&stop_time, NULL);
-    printf("loop count = %d , average run  %f ms\n", test_count,
+    printf("run loop count = %d , average time: %f ms\n", test_count,
            (__get_us(stop_time) - __get_us(start_time)) / 1000.0 / test_count);
 
     // release
@@ -337,6 +392,7 @@ int main(int argc, char **argv)
     {
         free(resize_buf);
     }
+    stbi_image_free(input_data);
 
     return 0;
 }

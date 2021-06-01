@@ -18,13 +18,8 @@ set(RKNN_API_PATH ${CMAKE_SOURCE_DIR}/../../librknn_api)
 include_directories(${RKNN_API_PATH}/include)
 set(RKNN_API_LIB ${RKNN_API_PATH}/${LIB_ARCH}/librknn_api.so)
 
-# opencv
-if(LIB_ARCH STREQUAL "lib")
-	set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/../3rdparty/opencv/opencv-linux-armhf/share/OpenCV)
-else()
-	set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/../3rdparty/opencv/opencv-linux-aarch64/share/OpenCV)
-endif()
-find_package(OpenCV REQUIRED)
+#stb
+include_directories(${CMAKE_SOURCE_DIR}/../3rdparty/)
 
 set(CMAKE_INSTALL_RPATH "lib")
 
@@ -35,7 +30,7 @@ add_executable(rknn_ssd_demo
 
 target_link_libraries(rknn_ssd_demo
 	${RKNN_API_LIB}
-	${OpenCV_LIBS}
+	dl
 )
 
 # install target and libraries
