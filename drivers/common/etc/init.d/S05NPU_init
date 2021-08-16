@@ -4,7 +4,7 @@ case "$1" in
 	start)
 		printf "insmod NPU modules: "
 		cp /usr/lib/cl_*.h /tmp/
-		insmod /lib/modules/galcore.ko contiguousSize=0x400000 gpuProfiler=1
+		insmod /lib/modules/galcore.ko contiguousSize=0x400000
 		unset MAX_FREQ
 		read  MAX_FREQ < /sys/class/devfreq/ffbc0000.npu/max_freq
 		echo  $MAX_FREQ > /sys/class/devfreq/ffbc0000.npu/userspace/set_freq
