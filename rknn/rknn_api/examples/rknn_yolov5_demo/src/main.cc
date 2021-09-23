@@ -45,14 +45,46 @@ using namespace cimg_library;
                   Functions
 -------------------------------------------*/
 
-static void printRKNNTensor(rknn_tensor_attr *attr)
+inline const char* get_type_string(rknn_tensor_type type)
 {
-    printf("index=%d name=%s n_dims=%d dims=[%d %d %d %d] n_elems=%d size=%d "
-           "fmt=%d type=%d qnt_type=%d fl=%d zp=%d scale=%f\n",
-           attr->index, attr->name, attr->n_dims, attr->dims[3], attr->dims[2],
-           attr->dims[1], attr->dims[0], attr->n_elems, attr->size, 0, attr->type,
-           attr->qnt_type, attr->fl, attr->zp, attr->scale);
+    switch(type) {
+    case RKNN_TENSOR_FLOAT32: return "FP32";
+    case RKNN_TENSOR_FLOAT16: return "FP16";
+    case RKNN_TENSOR_INT8: return "INT8";
+    case RKNN_TENSOR_UINT8: return "UINT8";
+    case RKNN_TENSOR_INT16: return "INT16";
+    default: return "UNKNOW";
+    }
 }
+
+inline const char* get_qnt_type_string(rknn_tensor_qnt_type type)
+{
+    switch(type) {
+    case RKNN_TENSOR_QNT_NONE: return "NONE";
+    case RKNN_TENSOR_QNT_DFP: return "DFP";
+    case RKNN_TENSOR_QNT_AFFINE_ASYMMETRIC: return "AFFINE";
+    default: return "UNKNOW";
+    }
+}
+
+inline const char* get_format_string(rknn_tensor_format fmt)
+{
+    switch(fmt) {
+    case RKNN_TENSOR_NCHW: return "NCHW";
+    case RKNN_TENSOR_NHWC: return "NHWC";
+    default: return "UNKNOW";
+    }
+}
+
+static void dump_tensor_attr(rknn_tensor_attr *attr)
+{
+    printf("  index=%d, name=%s, n_dims=%d, dims=[%d, %d, %d, %d], n_elems=%d, size=%d, fmt=%s, type=%s, qnt_type=%s, "
+           "zp=%d, scale=%f\n",
+           attr->index, attr->name, attr->n_dims, attr->dims[3], attr->dims[2], attr->dims[1], attr->dims[0],
+           attr->n_elems, attr->size, get_format_string(attr->fmt), get_type_string(attr->type),
+           get_qnt_type_string(attr->qnt_type), attr->zp, attr->scale);
+}
+
 double __get_us(struct timeval t) { return (t.tv_sec * 1000000 + t.tv_usec); }
 
 static unsigned char *load_data(FILE *fp, size_t ofst, size_t sz)
@@ -143,8 +175,6 @@ static unsigned char *load_image(const char *image_path, int *org_height, int *o
         return NULL;
     }
 
-    printf("w=%d,h=%d,c=%d, fmt=%d\n", req_width, req_height, req_channel, input_attr->fmt);
-
     int height = 0;
     int width = 0;
     int channel = 0;
@@ -180,9 +210,8 @@ int main(int argc, char **argv)
     int img_channel = 0;
     rga_context rga_ctx;
     drm_context drm_ctx;
-    const float vis_threshold = 0.1;
-    const float nms_threshold = 0.5;
-    const float conf_threshold = 0.3;
+    const float nms_threshold = NMS_THRESH;
+    const float box_conf_threshold = BOX_THRESH;
     struct timeval start_time, stop_time;
     int ret;
     memset(&rga_ctx, 0, sizeof(rga_context));
@@ -193,6 +222,9 @@ int main(int argc, char **argv)
         printf("Usage: %s <rknn model> <bmp> \n", argv[0]);
         return -1;
     }
+
+    printf("post process config: box_conf_threshold = %.2f, nms_threshold = %.2f\n",
+           box_conf_threshold, nms_threshold);
 
     model_name = (char *)argv[1];
     char *image_name = argv[2];
@@ -247,7 +279,7 @@ int main(int argc, char **argv)
             printf("rknn_init error ret=%d\n", ret);
             return -1;
         }
-        printRKNNTensor(&(input_attrs[i]));
+        dump_tensor_attr(&(input_attrs[i]));
     }
 
     rknn_tensor_attr output_attrs[io_num.n_output];
@@ -257,7 +289,13 @@ int main(int argc, char **argv)
         output_attrs[i].index = i;
         ret = rknn_query(ctx, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs[i]),
                          sizeof(rknn_tensor_attr));
-        printRKNNTensor(&(output_attrs[i]));
+        dump_tensor_attr(&(output_attrs[i]));
+        if(output_attrs[i].qnt_type != RKNN_TENSOR_QNT_AFFINE_ASYMMETRIC || output_attrs[i].type != RKNN_TENSOR_UINT8)
+        {
+            fprintf(stderr,"The Demo required for a Affine asymmetric u8 quantized rknn model, but output quant type is %s, output data type is %s\n", 
+                    get_qnt_type_string(output_attrs[i].qnt_type),get_type_string(output_attrs[i].type));
+            return -1;
+        }
     }
 
     int channel = 3;
@@ -329,20 +367,23 @@ int main(int argc, char **argv)
 
     detect_result_group_t detect_result_group;
     std::vector<float> out_scales;
-    std::vector<uint8_t> out_zps;
+    std::vector<uint32_t> out_zps;
     for (int i = 0; i < io_num.n_output; ++i)
     {
         out_scales.push_back(output_attrs[i].scale);
         out_zps.push_back(output_attrs[i].zp);
     }
     post_process((uint8_t *)outputs[0].buf, (uint8_t *)outputs[1].buf, (uint8_t *)outputs[2].buf, height, width,
-                 conf_threshold, nms_threshold, vis_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
+                 box_conf_threshold, nms_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
 
     // Draw Objects
+    char text[256];
     const unsigned char blue[] = {0, 0, 255};
+    const unsigned char white[] = {255, 255, 255};
     for (int i = 0; i < detect_result_group.count; i++)
     {
         detect_result_t *det_result = &(detect_result_group.results[i]);
+        sprintf(text, "%s %.2f", det_result->name, det_result->prop);
         printf("%s @ (%d %d %d %d) %f\n",
                det_result->name,
                det_result->box.left, det_result->box.top, det_result->box.right, det_result->box.bottom,
@@ -353,7 +394,7 @@ int main(int argc, char **argv)
         int y2 = det_result->box.bottom;
         //draw box
         img.draw_rectangle(x1, y1, x2, y2, blue, 1, ~0U);
-        img.draw_text(x1, y1 - 12, det_result->name, blue);
+        img.draw_text(x1, y1 - 12, text, white);
     }
     img.save("./out.bmp");
     ret = rknn_outputs_release(ctx, io_num.n_output, outputs);
@@ -369,12 +410,12 @@ int main(int argc, char **argv)
         ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
 #if PERF_WITH_POST
         post_process((uint8_t *)outputs[0].buf, (uint8_t *)outputs[1].buf, (uint8_t *)outputs[2].buf, height, width,
-                     conf_threshold, nms_threshold, vis_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
+                     box_conf_threshold, nms_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
 #endif
         ret = rknn_outputs_release(ctx, io_num.n_output, outputs);
     }
     gettimeofday(&stop_time, NULL);
-    printf("run loop count = %d , average time: %f ms\n", test_count,
+    printf("loop count = %d , average run  %f ms\n", test_count,
            (__get_us(stop_time) - __get_us(start_time)) / 1000.0 / test_count);
 
     // release

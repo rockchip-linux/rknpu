@@ -18,6 +18,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <vector>
+#include <set>
 #include "postprocess.h"
 #include <stdint.h>
 #define LABEL_NALE_TXT_PATH "./model/coco_80_labels_list.txt"
@@ -101,11 +102,11 @@ static float CalculateOverlap(float xmin0, float ymin0, float xmax0, float ymax0
     return u <= 0.f ? 0.f : (i / u);
 }
 
-static int nms(int validCount, std::vector<float> &outputLocations, std::vector<int> &order, float threshold)
+static int nms(int validCount, std::vector<float> &outputLocations, std::vector<int> classIds, std::vector<int> &order, int filterId, float threshold)
 {
     for (int i = 0; i < validCount; ++i)
     {
-        if (order[i] == -1)
+        if (order[i] == -1 || classIds[i] != filterId)
         {
             continue;
         }
@@ -113,7 +114,7 @@ static int nms(int validCount, std::vector<float> &outputLocations, std::vector<
         for (int j = i + 1; j < validCount; ++j)
         {
             int m = order[j];
-            if (m == -1)
+            if (m == -1 || classIds[i] != filterId)
             {
                 continue;
             }
@@ -191,21 +192,21 @@ inline static int32_t __clip(float val, float min, float max)
     return f;
 }
 
-static uint8_t qnt_f32_to_affine(float f32, uint8_t zp, float scale)
+static uint8_t qnt_f32_to_affine(float f32, uint32_t zp, float scale)
 {
     float dst_val = (f32 / scale) + zp;
     uint8_t res = (uint8_t)__clip(dst_val, 0, 255);
     return res;
 }
 
-static float deqnt_affine_to_f32(uint8_t qnt, uint8_t zp, float scale)
+static float deqnt_affine_to_f32(uint8_t qnt, uint32_t zp, float scale)
 {
     return ((float)qnt - (float)zp) * scale;
 }
 
 static int process(uint8_t *input, int *anchor, int grid_h, int grid_w, int height, int width, int stride,
-                   std::vector<float> &boxes, std::vector<float> &boxScores, std::vector<int> &classId,
-                   float threshold, uint8_t zp, float scale)
+                   std::vector<float> &boxes, std::vector<float> &objProbs, std::vector<int> &classId,
+                   float threshold, uint32_t zp, float scale)
 {
 
     int validCount = 0;
@@ -237,8 +238,6 @@ static int process(uint8_t *input, int *anchor, int grid_h, int grid_w, int heig
                     boxes.push_back(box_y);
                     boxes.push_back(box_w);
                     boxes.push_back(box_h);
-                    float box_conf_f32 = sigmoid(deqnt_affine_to_f32(box_confidence, zp, scale));
-                    boxScores.push_back(box_conf_f32);
 
                     uint8_t maxClassProbs = in_ptr[5 * grid_len];
                     int maxClassId = 0;
@@ -251,6 +250,7 @@ static int process(uint8_t *input, int *anchor, int grid_h, int grid_w, int heig
                             maxClassProbs = prob;
                         }
                     }
+                    objProbs.push_back(sigmoid(deqnt_affine_to_f32(maxClassProbs, zp, scale)));
                     classId.push_back(maxClassId);
                     validCount++;
                 }
@@ -261,8 +261,8 @@ static int process(uint8_t *input, int *anchor, int grid_h, int grid_w, int heig
 }
 
 int post_process(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in_h, int model_in_w,
-                 float conf_threshold, float nms_threshold, float vis_threshold, float scale_w, float scale_h,
-                 std::vector<uint8_t> &qnt_zps, std::vector<float> &qnt_scales,
+                 float conf_threshold, float nms_threshold, float scale_w, float scale_h,
+                 std::vector<uint32_t> &qnt_zps, std::vector<float> &qnt_scales,
                  detect_result_group_t *group)
 {
     static int init = -1;
@@ -280,28 +280,32 @@ int post_process(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in
     memset(group, 0, sizeof(detect_result_group_t));
 
     std::vector<float> filterBoxes;
-    std::vector<float> boxesScore;
+    std::vector<float> objProbs;
     std::vector<int> classId;
+
+    // stride 8
     int stride0 = 8;
     int grid_h0 = model_in_h / stride0;
     int grid_w0 = model_in_w / stride0;
     int validCount0 = 0;
     validCount0 = process(input0, (int *)anchor0, grid_h0, grid_w0, model_in_h, model_in_w,
-                          stride0, filterBoxes, boxesScore, classId, conf_threshold, qnt_zps[0], qnt_scales[0]);
+                          stride0, filterBoxes, objProbs, classId, conf_threshold, qnt_zps[0], qnt_scales[0]);
 
+    // stride 16
     int stride1 = 16;
     int grid_h1 = model_in_h / stride1;
     int grid_w1 = model_in_w / stride1;
     int validCount1 = 0;
     validCount1 = process(input1, (int *)anchor1, grid_h1, grid_w1, model_in_h, model_in_w,
-                          stride1, filterBoxes, boxesScore, classId, conf_threshold, qnt_zps[1], qnt_scales[1]);
+                          stride1, filterBoxes, objProbs, classId, conf_threshold, qnt_zps[1], qnt_scales[1]);
 
+    // stride 32
     int stride2 = 32;
     int grid_h2 = model_in_h / stride2;
     int grid_w2 = model_in_w / stride2;
     int validCount2 = 0;
     validCount2 = process(input2, (int *)anchor2, grid_h2, grid_w2, model_in_h, model_in_w,
-                          stride2, filterBoxes, boxesScore, classId, conf_threshold, qnt_zps[2], qnt_scales[2]);
+                          stride2, filterBoxes, objProbs, classId, conf_threshold, qnt_zps[2], qnt_scales[2]);
 
     int validCount = validCount0 + validCount1 + validCount2;
     // no object detect
@@ -316,9 +320,14 @@ int post_process(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in
         indexArray.push_back(i);
     }
 
-    quick_sort_indice_inverse(boxesScore, 0, validCount - 1, indexArray);
+    quick_sort_indice_inverse(objProbs, 0, validCount - 1, indexArray);
 
-    nms(validCount, filterBoxes, indexArray, nms_threshold);
+    std::set<int> class_set(std::begin(classId), std::end(classId));
+
+    for (auto c : class_set)
+    {
+        nms(validCount, filterBoxes, classId, indexArray, c, nms_threshold);
+    }
 
     int last_count = 0;
     group->count = 0;
@@ -326,7 +335,7 @@ int post_process(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in
     for (int i = 0; i < validCount; ++i)
     {
 
-        if (indexArray[i] == -1 || boxesScore[i] < vis_threshold || i >= OBJ_NUMB_MAX_SIZE)
+        if (indexArray[i] == -1 || i >= OBJ_NUMB_MAX_SIZE)
         {
             continue;
         }
@@ -337,12 +346,13 @@ int post_process(uint8_t *input0, uint8_t *input1, uint8_t *input2, int model_in
         float x2 = x1 + filterBoxes[n * 4 + 2];
         float y2 = y1 + filterBoxes[n * 4 + 3];
         int id = classId[n];
+        float obj_conf = objProbs[i];
 
         group->results[last_count].box.left = (int)(clamp(x1, 0, model_in_w) / scale_w);
         group->results[last_count].box.top = (int)(clamp(y1, 0, model_in_h) / scale_h);
         group->results[last_count].box.right = (int)(clamp(x2, 0, model_in_w) / scale_w);
         group->results[last_count].box.bottom = (int)(clamp(y2, 0, model_in_h) / scale_h);
-        group->results[last_count].prop = boxesScore[n];
+        group->results[last_count].prop = obj_conf;
         char *label = labels[id];
         strncpy(group->results[last_count].name, label, OBJ_NAME_MAX_SIZE);
 
