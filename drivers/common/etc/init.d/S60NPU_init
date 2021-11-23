@@ -1,10 +1,29 @@
-#!/bin/sh
+#!/bin/sh -x
+
+GetDDRBitWidth()
+{
+    bit=1
+    a=1
+    while [ 1 ];do
+        a=$((1<<$bit))
+        if [ $a -ge $1 ];then
+                break
+        fi
+        let bit++
+    done
+    return $(($bit<16?16:$bit))
+}
+
+
 
 case "$1" in
 	start)
 		printf "insmod NPU modules: "
 		cp /usr/lib/cl_*.h /tmp/
-		insmod /lib/modules/galcore.ko contiguousSize=0x400000
+		DDR_SIZE=`cat /proc/meminfo|grep MemTotal|awk '{print $2}'`
+		GetDDRBitWidth $DDR_SIZE
+		bitWidth=$(($?+10))
+		insmod /lib/modules/galcore.ko contiguousSize=0x400000 DDRBitWidth=$bitWidth
 		unset MAX_FREQ
 		read  MAX_FREQ < /sys/class/devfreq/ffbc0000.npu/max_freq
 		echo  $MAX_FREQ > /sys/class/devfreq/ffbc0000.npu/userspace/set_freq
