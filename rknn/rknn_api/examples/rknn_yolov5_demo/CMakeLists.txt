@@ -4,8 +4,8 @@ project(rknn_yolov5_demo_linux)
 
 set(CMAKE_SYSTEM_NAME Linux)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -s -O3")
 
 if (CMAKE_C_COMPILER MATCHES "aarch64")
   set(LIB_ARCH lib64)

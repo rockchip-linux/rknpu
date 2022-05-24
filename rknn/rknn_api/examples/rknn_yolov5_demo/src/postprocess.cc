@@ -297,7 +297,7 @@ int post_process(uint8_t* input0, uint8_t* input1, uint8_t* input2, int model_in
   group->count   = 0;
   /* box valid detect target */
   for (int i = 0; i < validCount; ++i) {
-    if (indexArray[i] == -1 || i >= OBJ_NUMB_MAX_SIZE) {
+    if (indexArray[i] == -1 || last_count >= OBJ_NUMB_MAX_SIZE) {
       continue;
     }
     int n = indexArray[i];
