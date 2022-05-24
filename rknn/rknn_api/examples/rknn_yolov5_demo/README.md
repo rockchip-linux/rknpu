@@ -97,11 +97,15 @@ GCC_COMPILER=~/opt/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf/bin/arm-linux-
 
 ### 推送执行文件到板子
 
-连接板子的usb口到PC,将整个demo目录到`/userdata`:
+将 install/rknn_yolov5_demo 拷贝到板子的/userdata/目录.
+
+- 如果使用rockchip的EVB板子，可以使用adb将文件推到板子上：
 
 ```sh
 adb push install/rknn_yolov5_demo /userdata/
 ```
+
+如果使用其他板子，可以使用scp等方式将install/rknn_yolov5_demo拷贝到板子的/userdata/目录
 
 ## 运行
 

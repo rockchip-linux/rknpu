@@ -18,7 +18,7 @@ rknn.config(force_builtin_perm=True)
 
 Note: if it shows "get unvalid input physical address, please extend in/out memory space", you may need to reboot.
 
-## build
+## Build
 
 modify `GCC_COMPILER` on `build.sh` for target platform, then execute
 
@@ -26,28 +26,34 @@ modify `GCC_COMPILER` on `build.sh` for target platform, then execute
 ./build.sh
 ```
 
-## install
+## Install
 
-connect device and push build output into `/userdata`
+Copy install/rknn_zero_copy_demo to the devices under /userdata/.
+
+- If you use rockchip's evb board, you can use the following way:
+
+Connect device and push the program and rknn model to `/userdata`
 
 ```sh
 adb push install/rknn_zero_copy_demo /userdata/
 ```
 
-## run
+- If your board has sshd service, you can use scp or other methods to copy the program and rknn model to the board.
+
+## Run
 
 ```sh
 adb shell
 cd /userdata/rknn_zero_copy_demo/
 ```
 
-- rk180x
+- RK1808/RK1806
 
 ```sh
 ./run_rk180x.sh
 ```
 
-- rv1109/rv1126
+- RV1109/RV1126
 
 ```sh
 ./run_rv1109_rv1126.sh
