@@ -16,7 +16,35 @@ In the "model" directory, models without NHWC suffix have input in NCHW format, 
 rknn.config(force_builtin_perm=True)
 ```
 
-Note: if it shows "get unvalid input physical address, please extend in/out memory space", you may need to reboot.
+Note: if it shows "**get unvalid input physical address, please extend in/out memory space**", you may need to modify the size of **CMA** in the **kernel's dts**, such as:
+
+```
+diff --git a/arch/arm/boot/dts/rv1126.dtsi b/arch/arm/boot/dts/rv1126.dtsi
+index f5f0a07..1d0487c 100644
+--- a/arch/arm/boot/dts/rv1126.dtsi
++++ b/arch/arm/boot/dts/rv1126.dtsi
+@@ -362,11 +362,17 @@
+                #size-cells = <1>;
+                ranges;
+ 
++               nouse@0 {
++                       reg = <0x00000000 0x4000>;
++                       no-map;
++               };
++
++
+                linux,cma {
+                        compatible = "shared-dma-pool";
+                        inactive;
+                        reusable;
+-                       size = <0x800000>;
++                       size = <0x8000000>;
+                        linux,cma-default;
+                };
+
+```
+
+This patch is only for RV1109/RV1126，if you use RK1808，you  need to select the appropriate dts file to modify.
 
 ## Build
 
