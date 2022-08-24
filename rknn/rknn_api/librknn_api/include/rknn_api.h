@@ -11,8 +11,8 @@
 *****************************************************************************/
 
 
-#ifndef _RKNN_API_H
-#define _RKNN_API_H
+#ifndef _RKNN_RUNTIME_H
+#define _RKNN_RUNTIME_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +45,11 @@ extern "C" {
 #define RKNN_FLAG_COLLECT_PERF_MASK             0x00000008
 
 /*
+   save pre-compile model.
+*/
+#define RKNN_FLAG_PRECOMPILE_MASK               0x00000020
+
+/*
     Error code returned by the RKNN API.
 */
 #define RKNN_SUCC                               0       /* execute succeed. */
@@ -60,8 +65,10 @@ extern "C" {
 #define RKNN_ERR_DEVICE_UNMATCH                 -10     /* the device is unmatch, please update rknn sdk
                                                            and npu driver/firmware. */
 #define RKNN_ERR_INCOMPATILE_PRE_COMPILE_MODEL  -11     /* This RKNN model use pre_compile mode, but not compatible with current driver. */
+//add by chifred: for reporting optimization version bug info
 #define RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION  -12     /* This RKNN model set optimization level, but not compatible with current driver. */
 #define RKNN_ERR_TARGET_PLATFORM_UNMATCH        -13     /* This RKNN model set target platform, but not compatible with current platform. */
+//chifred add end
 #define RKNN_ERR_NON_PRE_COMPILED_MODEL_ON_MINI_DRIVER -14  /* This RKNN model is not a pre-compiled model, but the npu driver is mini driver. */
 
 /*
@@ -71,12 +78,12 @@ extern "C" {
 #define RKNN_MAX_NAME_LEN                       256     /* maximum name lenth of tensor. */
 
 
+
 #ifdef __arm__
 typedef uint32_t rknn_context;
 #else
 typedef uint64_t rknn_context;
 #endif
-
 
 /*
     The query command for rknn_query
@@ -86,11 +93,10 @@ typedef enum _rknn_query_cmd {
     RKNN_QUERY_INPUT_ATTR,                              /* query the attribute of input tensor. */
     RKNN_QUERY_OUTPUT_ATTR,                             /* query the attribute of output tensor. */
     RKNN_QUERY_PERF_DETAIL,                             /* query the detail performance, need set
-                                                           RKNN_FLAG_COLLECT_PERF_MASK when call rknn_init,
-                                                           this query needs to be valid after rknn_outputs_get. */
-    RKNN_QUERY_PERF_RUN,                                /* query the time of run,
-                                                           this query needs to be valid after rknn_outputs_get. */
+                                                           RKNN_FLAG_COLLECT_PERF_MASK when call rknn_init. */
+    RKNN_QUERY_PERF_RUN,                                /* query the time of run. */
     RKNN_QUERY_SDK_VERSION,                             /* query the sdk & driver version */
+    RKNN_QUERY_PRE_COMPILE,                             /* query the pre compile model */
 
     RKNN_QUERY_CMD_MAX
 } rknn_query_cmd;
@@ -183,6 +189,17 @@ typedef struct _rknn_sdk_version {
 } rknn_sdk_version;
 
 /*
+   The flags of rknn_tensor_mem.
+*/
+typedef enum _rknn_tensor_mem_flags {
+    RKNN_TENSOR_MEMORY_FLAGS_UNKNOWN = 0,
+    RKNN_TENSOR_MEMORY_FLAGS_ALLOC_INSIDE = 1,           /*Used to mark in rknn_destroy_mem() whether it is necessary to release the "mem" pointer itself.
+                                                         If the flag RKNN_TENSOR_MEMORY_FLAGS_ALLOC_INSIDE is set, rknn_destroy_mem() will call free(mem).*/
+   
+} rknn_tensor_mem_flags;
+
+
+/*
     the memory information of tensor.
 */
 typedef struct _rknn_tensor_memory {
@@ -192,7 +209,7 @@ typedef struct _rknn_tensor_memory {
     uint32_t    size;                                   /* the size of tensor buffer. */
     uint32_t    handle;                                 /* the handle tensor buffer. */
     void *      priv_data;                              /* the data which is reserved. */
-    uint64_t    reserved_flag;                          /* the flag which is reserved */
+    uint64_t reserved_flag;                             /* the flag which is reserved. */
 } rknn_tensor_mem;
 
 /*
@@ -243,6 +260,14 @@ typedef struct _rknn_output_extend {
     uint64_t frame_id;                                  /* output parameter, indicate the frame id of outputs, corresponds to
                                                            struct rknn_run_extend.frame_id.*/
 } rknn_output_extend;
+
+/*
+    the information for RKNN_QUERY_RKNN_PRECOMPILE.
+*/
+typedef struct _rknn_precompile {
+    void* model_data;                                   /* the pointer of precompile model. don't need free it by user. */
+    uint32_t data_len;                                  /* the model length. */
+} rknn_precompile;
 
 
 /*  rknn_init
@@ -349,8 +374,6 @@ int rknn_inputs_unmap(rknn_context context, uint32_t n_inputs, rknn_tensor_mem m
 /*  rknn_run
 
     run the model to execute inference.
-    Note: On RK3399Pro, this function does not block normally, but it blocks when more than 3 inferences
-    are not obtained by rknn_outputs_get.
 
     input:
         rknn_context context        the handle of context.
@@ -409,7 +432,6 @@ int rknn_outputs_release(rknn_context context, uint32_t n_ouputs, rknn_output ou
 */
 int rknn_outputs_map(rknn_context context, uint32_t n_outputs, rknn_tensor_mem mem[]);
 
-
 /*  rknn_outputs_sync
 
     synchronize the output tensors buffer to ensure cache cohenrency, wait the inference to finish.
@@ -422,7 +444,6 @@ int rknn_outputs_map(rknn_context context, uint32_t n_outputs, rknn_tensor_mem m
         int                         error code.
 */
 int rknn_outputs_sync(rknn_context context, uint32_t n_outputs, rknn_tensor_mem mem[]);
-
 
 /*  rknn_outputs_unmap
 
@@ -437,8 +458,47 @@ int rknn_outputs_sync(rknn_context context, uint32_t n_outputs, rknn_tensor_mem 
 */
 int rknn_outputs_unmap(rknn_context context, uint32_t n_ouputs, rknn_tensor_mem mem[]);
 
+/*  rknn_create_mem (memory allocated inside)
+
+    Create tensor memory. This API require libdrm support!
+
+    input:
+        rknn_context ctx            the handle of context.
+        uint64_t size               the size of tensor buffer.
+    return:
+        rknn_tensor_mem             the pointer of tensor memory information.
+*/
+rknn_tensor_mem* rknn_create_mem(rknn_context ctx, uint64_t size);
+
+/*  rknn_destroy_mem (support allocate inside and outside)
+
+    destroy tensor memory.
+
+    input:
+        rknn_context ctx            the handle of context.
+        rknn_tensor_mem *mem        the pointer of tensor memory information.
+    return:
+        int                         error code
+*/
+int rknn_destroy_mem(rknn_context ctx, rknn_tensor_mem *mem);
+
+
+
+/*  rknn_set_io_mem
+
+    set the input and output tensors buffer.
+
+    input:
+        rknn_context ctx            the handle of context.
+        rknn_tensor_mem *mem        the array of tensor memory information.
+        rknn_tensor_attr *attr      the attribute of input or output tensor buffer.
+    return:
+        int                         error code.
+*/
+int rknn_set_io_mem(rknn_context ctx, rknn_tensor_mem *mem, rknn_tensor_attr *attr);
+
 #ifdef __cplusplus
 } //extern "C"
 #endif
 
-#endif  //_RKNN_API_H
+#endif  //_RKNN_RUNTIME_H

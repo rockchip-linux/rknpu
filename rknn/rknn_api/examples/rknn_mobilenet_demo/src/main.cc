@@ -35,6 +35,13 @@ using namespace std;
                   Functions
 -------------------------------------------*/
 
+static inline int64_t getCurrentTimeUs()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
 static void printRKNNTensor(rknn_tensor_attr *attr)
 {
     printf("index=%d name=%s n_dims=%d dims=[%d %d %d %d] n_elems=%d size=%d fmt=%d type=%d qnt_type=%d fl=%d zp=%d scale=%f\n",
@@ -175,6 +182,11 @@ int main(int argc, char **argv)
 
     const char *model_path = argv[1];
     const char *img_path = argv[2];
+    int loop_count = 1;
+    if (argc > 3)
+    {
+        loop_count = atoi(argv[3]);
+    }
 
     // Load RKNN Model
     model = load_model(model_path, &model_len);
@@ -252,11 +264,17 @@ int main(int argc, char **argv)
 
     // Run
     printf("rknn_run\n");
-    ret = rknn_run(ctx, nullptr);
-    if (ret < 0)
+    for (int n = 0; n < loop_count; ++n)
     {
-        printf("rknn_run fail! ret=%d\n", ret);
-        return -1;
+        int64_t start_us = getCurrentTimeUs();
+        ret = rknn_run(ctx, nullptr);
+        if (ret < 0)
+        {
+            printf("rknn_run fail! ret=%d\n", ret);
+            return -1;
+        }
+        int64_t elapse_us = getCurrentTimeUs() - start_us;
+        printf("%4d: Elapse Time = %.2fms, FPS = %.2f\n", n, elapse_us / 1000.f, 1000.f * 1000.f / elapse_us);
     }
 
     // Get Output
