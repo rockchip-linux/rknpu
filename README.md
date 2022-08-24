@@ -9,11 +9,13 @@
 - RK1808/RK1806
 
 - RV1109/RV1126
-  
 
-    注意：RK3399Pro用户态的库和RK1808是不一样的，请参考：https://github.com/rockchip-linux/RKNPUTools/tree/rk33/mid/8.1/develop/rknn-api
+    
 
-    RK3566及RK3568请参考：https://github.com/rockchip-linux/rknpu2
+**注意：**    
+
+- **RK3399Pro用户态的库及驱动不在本工程**，请参考：https://github.com/airockchip/RK3399Pro_npu
+- RK3566/RK3568/RK3588/RV1103/RV1106请参考：https://github.com/rockchip-linux/rknpu2
 
 
 
@@ -21,8 +23,8 @@
 
 ​    在使用RKNN API进行部署之前，需要使用RKNN Toolkit将原始的模型转化成rknn模型。
 
-    - RK1808/RK1806/RV1109/RV1126/RK3399Pro 使用： https://github.com/rockchip-linux/rknn-toolkit
-    - RK3566/RK3568使用：https://github.com/rockchip-linux/rknn-toolkit2
+- RK1808/RK1806/RV1109/RV1126/RK3399Pro 使用： https://github.com/rockchip-linux/rknn-toolkit
+- RK3566/RK3568/RK3588/RV1103/RV1106使用：https://github.com/rockchip-linux/rknn-toolkit2
 
 ​    具体的使用说明请参考相应的网址。
 
@@ -127,12 +129,12 @@ adb push drivers/linux-armhf-puma-mini/   /
 adb push drivers/npu_ko/galcore_puma.ko /lib/modules/galcore.ko
 ```
 
-注意：adb不同版本的默认行为不一样，有些是直接push目录的，有些是push目录下的文件。因此替换完后，需要检查一下相关的库是否已经替换成功。比如通过md5sum检查对应文件的md5值是否相同。
+注意：adb不同版本的默认行为不一样，有些是直接push目录的，有些是push目录下的文件。因此替换完后，需要检查一下相关的库是否已经替换成功。比如通过md5sum检查对应文件的md5值是否相同。部分板子不支持adb命令，请通过ssh等其他方式拷贝文件到对应目录即可。
 
-​           另外，toybrick可能对文件路径进行了调整，因此最好通过toybrick自带的方式进行更新。
+**另外，toybrick可能对文件路径进行了调整，因此最好通过toybrick自带的方式进行更新。**
 
 
 
 ## librknn_api与librknn_runtime的区别
 
-librknn_api是对librknn_runtime的封装，主要是为了减少对其他so的编译依赖，功能上并未区别。检查驱动版本时，一般以librknn_runtime.so为准。
+librknn_api是对librknn_runtime的封装，主要是为了减少对其他so的编译依赖，功能上并没有区别。检查驱动版本时，一般以librknn_runtime.so为准。
