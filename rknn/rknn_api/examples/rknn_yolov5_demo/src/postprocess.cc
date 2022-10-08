@@ -220,7 +220,9 @@ static int process(uint8_t* input, int* anchor, int grid_h, int grid_w, int heig
               maxClassProbs = prob;
             }
           }
-          objProbs.push_back(sigmoid(deqnt_affine_to_f32(maxClassProbs, zp, scale)));
+          float deqnt_tmp_a = sigmoid(deqnt_affine_to_f32(box_confidence, zp, scale));
+          float deqnt_tmp_b = sigmoid(deqnt_affine_to_f32(maxClassProbs, zp, scale));
+          objProbs.push_back(deqnt_tmp_a * deqnt_tmp_b);
           classId.push_back(maxClassId);
           validCount++;
         }
