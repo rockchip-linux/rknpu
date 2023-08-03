@@ -80,8 +80,9 @@ drivers/
     [ 2] Failed to open device: No such file or directory, Try again...
     ```
     
-    遇到这种情况需要联系开发团队解决。
+    遇到这种情况需要联系开发团队解决。  
     
+    更新驱动后，如果使用在线预编译功能，遇到模型初始化完后卡主，或者导出的预编译模型只有2K大小的情况，请确认板端/usr/lib/npu/rknn/memory_profile文件是否有可执行权限，如果没有，请通过chmod +x命令为该文件添加可执行权限。如果该文件有可执行权限，仍出现上述问题，请联系开发团队解决。
     
 
 ### NPU full driver与mini driver的区别
@@ -105,27 +106,27 @@ drivers/
 - 更新RK1808的驱动：
 
 ```
-adb push drivers/linux-aarch64/   /
+adb push drivers/linux-aarch64/*   /
 adb push drivers/npu_ko/galcore.ko /lib/modules/galcore.ko
 ```
 
 - 更新RK1808 mini driver：
 
 ```
-adb push drivers/linux-aarch64-mini/   /
+adb push drivers/linux-aarch64-mini/*   /
 adb push drivers/npu_ko/galcore.ko /lib/modules/galcore.ko
 ```
 - 更新RV1109/RV1126的驱动：
 
 ```
-adb push drivers/linux-armhf-puma/   /
+adb push drivers/linux-armhf-puma/*   /
 adb push drivers/npu_ko/galcore_puma.ko /lib/modules/galcore.ko
 ```
 
 - 更新RV1109/RV1126 mini driver：
 
 ```
-adb push drivers/linux-armhf-puma-mini/   /
+adb push drivers/linux-armhf-puma-mini/*   /
 adb push drivers/npu_ko/galcore_puma.ko /lib/modules/galcore.ko
 ```
 

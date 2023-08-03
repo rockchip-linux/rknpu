@@ -33,7 +33,6 @@
 #define cimg_display 0
 #include "CImg/CImg.h"
 
-#include "drm_func.h"
 #include "rga_func.h"
 #include "rknn_api.h"
 #include "postprocess.h"
@@ -209,6 +208,7 @@ static unsigned char *load_image(const char *image_path, int *org_height, int *o
     return image_data;
 }
 
+
 /*-------------------------------------------
                   Main Functions
 -------------------------------------------*/
@@ -217,24 +217,18 @@ int main(int argc, char **argv)
     int status = 0;
     char *model_name = NULL;
     rknn_context ctx;
-    int is_map = 0;
-    rknn_tensor_mem in_mem[1];
-    void *drm_buf = NULL;
-    int drm_fd = -1;
-    int buf_fd = -1; // converted from buffer handle
-    unsigned int handle;
-    size_t actual_size = 0;
+    int is_zerocopy = 0;
     int img_width = 0;
     int img_height = 0;
     int img_channel = 0;
+    void *resize_buf = NULL;
     rga_context rga_ctx;
-    drm_context drm_ctx;
     const float nms_threshold = NMS_THRESH;
     const float box_conf_threshold = BOX_THRESH;
     struct timeval start_time, stop_time;
     int ret;
+
     memset(&rga_ctx, 0, sizeof(rga_context));
-    memset(&drm_ctx, 0, sizeof(drm_context));
 
     if (argc != 4)
     {
@@ -242,7 +236,7 @@ int main(int argc, char **argv)
         printf("Usage: %s <rknn model> <bmp> <flag>\n", argv[0]);
         printf("flag:\n");
         printf("\t 0: run builtin_permute=False rknn model, perform rknn_inputs_set\n");
-        printf("\t 1: run builtin_permute=True rknn model, perform rknn_inputs_map\n");
+        printf("\t 1: run builtin_permute=True rknn model, perform rknn_set_io_mem\n");
         return -1;
     }
 
@@ -250,13 +244,13 @@ int main(int argc, char **argv)
            box_conf_threshold, nms_threshold);
     model_name = (char *)argv[1];
     char *image_name = argv[2];
-    is_map = atoi(argv[3]);
+    is_zerocopy = atoi(argv[3]);
 
-    if (strstr(image_name, ".jpg") != NULL || strstr(image_name, ".png") != NULL)
-    {
-        printf("Error: read %s failed! only support .bmp format image\n", image_name);
-        return -1;
-    }
+    // if (strstr(image_name, ".jpg") != NULL || strstr(image_name, ".png") != NULL)
+    // {
+    //     printf("Error: read %s failed! only support .bmp format image\n", image_name);
+    //     return -1;
+    // }
 
     /* Create the neural network */
     printf("Loading mode...\n");
@@ -343,63 +337,75 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    // for non zero copy
     rknn_input inputs[1];
-    memset(inputs, 0, sizeof(inputs));
-    inputs[0].index = 0;
-    inputs[0].type = RKNN_TENSOR_UINT8;
-    inputs[0].size = width * height * channel;
-    inputs[0].fmt = RKNN_TENSOR_NHWC;
-
     rknn_output outputs[io_num.n_output];
+
+    memset(inputs, 0, sizeof(inputs));    
     memset(outputs, 0, sizeof(outputs));
     for (int i = 0; i < io_num.n_output; i++)
     {
         outputs[i].want_float = 0;
     }
 
-    // DRM alloc buffer
-    drm_fd = drm_init(&drm_ctx);
-    drm_buf = drm_buf_alloc(&drm_ctx, drm_fd, img_width, img_height, channel * 8,
-                            &buf_fd, &handle, &actual_size);
-    memcpy(drm_buf, input_data, img_width * img_height * channel);
-    void *resize_buf = malloc(height * width * channel);
+    // for zero copy
+    rknn_tensor_mem* inputs_mem[io_num.n_input];
+    rknn_tensor_mem* outputs_mem[io_num.n_output];
+
+    for (int i = 0; i < io_num.n_input; i++) {
+        inputs_mem[i] = rknn_create_mem(ctx, input_attrs[i].size);
+    }
+
+    for (int i = 0; i < io_num.n_output; i++)
+    {
+        outputs_mem[i] = rknn_create_mem(ctx, output_attrs[i].size);
+    }   
 
     // init rga context
     RGA_init(&rga_ctx);
-    if (is_map == 0)
+    if (is_zerocopy == 0)
     {
+        void *resize_buf = malloc(height * width * channel);
+
+        rga_resize(&rga_ctx, -1, input_data, img_width, img_height, -1, resize_buf, width, height);
+        
+        inputs[0].index = 0;
+        inputs[0].type = RKNN_TENSOR_UINT8;
+        inputs[0].size = width * height * channel;
+        inputs[0].fmt = RKNN_TENSOR_NHWC;
         inputs[0].pass_through = 0;
-        img_resize_slow(&rga_ctx, drm_buf, img_width, img_height, resize_buf, width, height);
         inputs[0].buf = resize_buf;
+
         gettimeofday(&start_time, NULL);
         rknn_inputs_set(ctx, io_num.n_input, inputs);
     }
     else
     {
+        rga_resize(&rga_ctx, -1, input_data, img_width, img_height, inputs_mem[0]->fd, nullptr, width, height);
+
         gettimeofday(&start_time, NULL);
-        ret = rknn_inputs_map(ctx, io_num.n_input, in_mem);
-        printf("input virt_addr = %p, phys_addr = 0x%llx, fd = %d, size = %d\n",
-               in_mem[0].logical_addr, in_mem[0].physical_addr, in_mem[0].fd,
-               in_mem[0].size);
-        if (in_mem[0].physical_addr == 0xffffffffffffffff)
+        rknn_set_io_mem(ctx, inputs_mem[0], &input_attrs[0]);
+
+        for (int i = 0; i < io_num.n_output; i++)
         {
-            printf("get unvalid input physical address, please extend in/out memory space\n");
-            exit(-1);
-        }
-        else
-        {
-            // rga process by physical addr
-            img_resize_fast(&rga_ctx, buf_fd, img_width, img_height, in_mem[0].physical_addr, width, height);
-        }
-        rknn_inputs_sync(ctx, io_num.n_input, in_mem);
+            rknn_set_io_mem(ctx, outputs_mem[i], &output_attrs[i]);
+        } 
+
+            gettimeofday(&stop_time, NULL);
+    printf("rknn_set_io_mem use %f ms\n",
+           (__get_us(stop_time) - __get_us(start_time)) / 1000);
     }
 
     ret = rknn_run(ctx, NULL);
-    ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
+
     gettimeofday(&stop_time, NULL);
     printf("once run use %f ms\n",
            (__get_us(stop_time) - __get_us(start_time)) / 1000);
 
+    if (is_zerocopy == 0) {
+        ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
+    }
+    
     //post process
     float scale_w = (float)width / img_width;
     float scale_h = (float)height / img_height;
@@ -412,8 +418,14 @@ int main(int argc, char **argv)
         out_scales.push_back(output_attrs[i].scale);
         out_zps.push_back(output_attrs[i].zp);
     }
-    post_process((uint8_t *)outputs[0].buf, (uint8_t *)outputs[1].buf, (uint8_t *)outputs[2].buf, height, width,
+
+    if (is_zerocopy == 0) {
+        post_process((uint8_t *)outputs[0].buf, (uint8_t *)outputs[1].buf, (uint8_t *)outputs[2].buf, height, width,
                  box_conf_threshold, nms_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
+    } else {
+        post_process((uint8_t *)outputs_mem[0]->logical_addr, (uint8_t *)outputs_mem[1]->logical_addr, (uint8_t *)outputs_mem[2]->logical_addr, height, width,
+                 box_conf_threshold, nms_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
+    }
 
     // Draw Objects
     char text[256];
@@ -437,16 +449,17 @@ int main(int argc, char **argv)
     }
     img.save("./out.bmp");
 
-    ret = rknn_outputs_release(ctx, io_num.n_output, outputs);
+    if (is_zerocopy == 0) {
+        ret = rknn_outputs_release(ctx, io_num.n_output, outputs);
+    }
 
     // loop test
-    int test_count = 10;
+    int test_count = 100;
     gettimeofday(&start_time, NULL);
-    if (is_map == 0)
+    if (is_zerocopy == 0)
     {
         for (int i = 0; i < test_count; ++i)
         {
-            img_resize_slow(&rga_ctx, drm_buf, img_width, img_height, resize_buf, width, height);
             rknn_inputs_set(ctx, io_num.n_input, inputs);
             ret = rknn_run(ctx, NULL);
             ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
@@ -461,15 +474,18 @@ int main(int argc, char **argv)
     {
         for (int i = 0; i < test_count; ++i)
         {
-            img_resize_fast(&rga_ctx, buf_fd, img_width, img_height, in_mem[0].physical_addr, width, height);
-            rknn_inputs_sync(ctx, io_num.n_input, in_mem);
+            rknn_set_io_mem(ctx, inputs_mem[0], &input_attrs[0]);
+
+            // for (int i = 0; i < io_num.n_output; i++)
+            // {
+            //     rknn_set_io_mem(ctx, outputs_mem[i], &output_attrs[i]);
+            // } 
+
             ret = rknn_run(ctx, NULL);
-            ret = rknn_outputs_get(ctx, io_num.n_output, outputs, NULL);
 #if PERF_WITH_POST
-            post_process((uint8_t *)outputs[0].buf, (uint8_t *)outputs[1].buf, (uint8_t *)outputs[2].buf, height, width,
-                         box_conf_threshold, nms_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
+            post_process((uint8_t *)outputs_mem[0]->logical_addr, (uint8_t *)outputs_mem[1]->logical_addr, (uint8_t *)outputs_mem[2]->logical_addr, height, width,
+                        box_conf_threshold, nms_threshold, scale_w, scale_h, out_zps, out_scales, &detect_result_group);
 #endif
-            ret = rknn_outputs_release(ctx, io_num.n_output, outputs);
         }
     }
     gettimeofday(&stop_time, NULL);
@@ -477,14 +493,18 @@ int main(int argc, char **argv)
            (__get_us(stop_time) - __get_us(start_time)) / 1000.0 / test_count);
 
     // release
-    if (is_map)
-    {
-        ret = rknn_inputs_unmap(ctx, io_num.n_input, in_mem);
-    }
     ret = rknn_destroy(ctx);
-    drm_buf_destroy(&drm_ctx, drm_fd, buf_fd, handle, drm_buf, actual_size);
 
-    drm_deinit(&drm_ctx, drm_fd);
+    for (int i = 0; i < io_num.n_input; i++)
+    {
+        rknn_destroy_mem(ctx, inputs_mem[i]);
+    }
+
+    for (int i = 0; i < io_num.n_output; i++)
+    {
+        rknn_destroy_mem(ctx, outputs_mem[i]);
+    }   
+
     RGA_deinit(&rga_ctx);
     if (model_data)
     {

@@ -329,10 +329,10 @@ int main(int argc, char **argv)
     const int MODEL_IN_HEIGHT = 224;
     const int MODEL_IN_CHANNELS = 3;
     bool isNCHW = false;
-    // mobilenet v2 mean/scale in rknn.config()
-    bool isReorder210 = true; /* reorder= '2 1 0' */
-    std::vector<float> mean({103.94, 116.78, 123.68});
-    std::vector<float> scale({58.82, 58.82, 58.82});
+    // mobilenet v1 mean/scale in rknn.config()
+    bool isReorder210 = false;
+    std::vector<float> mean({127.5, 127.5, 127.5});
+    std::vector<float> scale({127.5, 127.5, 127.5});
 
     rknn_context ctx;
     int ret;

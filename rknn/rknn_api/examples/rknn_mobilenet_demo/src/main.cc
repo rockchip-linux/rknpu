@@ -42,11 +42,68 @@ static inline int64_t getCurrentTimeUs()
     return tv.tv_sec * 1000000 + tv.tv_usec;
 }
 
+inline const char *get_type_string(rknn_tensor_type type)
+{
+    switch (type)
+    {
+    case RKNN_TENSOR_FLOAT32:
+        return "FP32";
+    case RKNN_TENSOR_FLOAT16:
+        return "FP16";
+    case RKNN_TENSOR_INT8:
+        return "INT8";
+    case RKNN_TENSOR_UINT8:
+        return "UINT8";
+    case RKNN_TENSOR_INT16:
+        return "INT16";
+    default:
+        return "UNKNOW";
+    }
+}
+
+inline const char *get_qnt_type_string(rknn_tensor_qnt_type type)
+{
+    switch (type)
+    {
+    case RKNN_TENSOR_QNT_NONE:
+        return "NONE";
+    case RKNN_TENSOR_QNT_DFP:
+        return "DFP";
+    case RKNN_TENSOR_QNT_AFFINE_ASYMMETRIC:
+        return "AFFINE";
+    default:
+        return "UNKNOW";
+    }
+}
+
+inline const char *get_format_string(rknn_tensor_format fmt)
+{
+    switch (fmt)
+    {
+    case RKNN_TENSOR_NCHW:
+        return "NCHW";
+    case RKNN_TENSOR_NHWC:
+        return "NHWC";
+    default:
+        return "UNKNOW";
+    }
+}
+
 static void printRKNNTensor(rknn_tensor_attr *attr)
 {
-    printf("index=%d name=%s n_dims=%d dims=[%d %d %d %d] n_elems=%d size=%d fmt=%d type=%d qnt_type=%d fl=%d zp=%d scale=%f\n",
-           attr->index, attr->name, attr->n_dims, attr->dims[3], attr->dims[2], attr->dims[1], attr->dims[0],
-           attr->n_elems, attr->size, 0, attr->type, attr->qnt_type, attr->fl, attr->zp, attr->scale);
+    if (attr->n_dims == 4) {
+        printf("  index=%d, name=%s, n_dims=%d, dims=[%d, %d, %d, %d], n_elems=%d, size=%d, fmt=%s, type=%s, qnt_type=%s, "
+               "zp=%d, scale=%f\n",
+               attr->index, attr->name, attr->n_dims, attr->dims[3], attr->dims[2], attr->dims[1], attr->dims[0],
+               attr->n_elems, attr->size, get_format_string(attr->fmt), get_type_string(attr->type),
+               get_qnt_type_string(attr->qnt_type), attr->zp, attr->scale);
+    } else {
+        printf("  index=%d, name=%s, n_dims=%d, dims=[%d, %d], n_elems=%d, size=%d, fmt=%s, type=%s, qnt_type=%s, "
+               "zp=%d, scale=%f\n",
+               attr->index, attr->name, attr->n_dims, attr->dims[1], attr->dims[0],
+               attr->n_elems, attr->size, get_format_string(attr->fmt), get_type_string(attr->type),
+               get_qnt_type_string(attr->qnt_type), attr->zp, attr->scale);
+    }
 }
 
 static unsigned char *load_model(const char *filename, int *model_size)

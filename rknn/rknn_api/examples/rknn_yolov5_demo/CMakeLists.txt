@@ -17,11 +17,6 @@ endif()
 set(RGA_DIR ${CMAKE_SOURCE_DIR}/../3rdparty/rga)
 include_directories(${RGA_DIR}/include)
 
-# drm
-set(DRM_DIR ${CMAKE_SOURCE_DIR}/../3rdparty/drm)
-include_directories(${DRM_DIR}/include)
-include_directories(${DRM_DIR}/include/libdrm)
-
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # rknn api
@@ -35,7 +30,6 @@ include_directories(${CMAKE_SOURCE_DIR}/../3rdparty/)
 set(CMAKE_INSTALL_RPATH "lib")
 
 add_executable(rknn_yolov5_demo
-        src/drm_func.c
         src/rga_func.c
         src/postprocess.cc
         src/main.cc

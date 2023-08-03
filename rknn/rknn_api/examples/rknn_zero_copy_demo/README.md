@@ -1,5 +1,6 @@
-# Zero copy demo
+# Example of zero copy
 
+## Overview
 In specific case, the number of input data copies can be reduced to 0, that is, zero copy. For example, when the RKNN model is asymmetric quantization, the quantization data type is uint8, the mean value of the 3 channels is the same integer and the scaling factor is the same, the normalization and quantization can be omitted. 
 
 This demo compares the performance difference between zero-copy and normal process inference.
@@ -16,35 +17,8 @@ In the "model" directory, models without NHWC suffix have input in NCHW format, 
 rknn.config(force_builtin_perm=True)
 ```
 
-Note: if it shows "**get unvalid input physical address, please extend in/out memory space**", you may need to modify the size of **CMA** in the **kernel's dts**, such as:
+For detailed model conversion scripts and instructions, please refer to the [rknn_yolov5_demo](../rknn_yolov5_demo/README.md)
 
-```
-diff --git a/arch/arm/boot/dts/rv1126.dtsi b/arch/arm/boot/dts/rv1126.dtsi
-index f5f0a07..1d0487c 100644
---- a/arch/arm/boot/dts/rv1126.dtsi
-+++ b/arch/arm/boot/dts/rv1126.dtsi
-@@ -362,11 +362,17 @@
-                #size-cells = <1>;
-                ranges;
- 
-+               nouse@0 {
-+                       reg = <0x00000000 0x4000>;
-+                       no-map;
-+               };
-+
-+
-                linux,cma {
-                        compatible = "shared-dma-pool";
-                        inactive;
-                        reusable;
--                       size = <0x800000>;
-+                       size = <0x8000000>;
-                        linux,cma-default;
-                };
-
-```
-
-This patch is only for RV1109/RV1126，if you use RK1808，you  need to select the appropriate dts file to modify.
 
 ## Build
 
@@ -53,6 +27,10 @@ modify `GCC_COMPILER` on `build.sh` for target platform, then execute
 ```sh
 ./build.sh
 ```
+
+Notice: this model is based on rknn_yolov5_demo
+
+
 
 ## Install
 
@@ -67,6 +45,8 @@ adb push install/rknn_zero_copy_demo /userdata/
 ```
 
 - If your board has sshd service, you can use scp or other methods to copy the program and rknn model to the board.
+
+  
 
 ## Run
 
@@ -86,3 +66,36 @@ cd /userdata/rknn_zero_copy_demo/
 ```sh
 ./run_rv1109_rv1126.sh
 ```
+
+After running, three model would be invoked. 
+
+- The 'zero_copy' would got best performance. 
+- The second one was the 'normal model with output optimize'. 
+- The 'normal model' would cost most time.
+
+
+## Expected results
+
+The test result should be similar to picutre `ref_detect_result.bmp`.  
+Reference labels, coordinates, and scores:
+```
+********************* run non-zero-copy model ***************************************
+person @ (208 238 287 511) 0.876641
+person @ (480 240 559 525) 0.867932
+person @ (108 233 230 535) 0.856740
+bus @ (91 127 554 466) 0.610052
+********************* run non-zero-copy model(enable output optimize) ***************
+person @ (208 238 287 511) 0.876641
+person @ (480 240 559 525) 0.867932
+person @ (108 233 230 535) 0.856740
+bus @ (91 127 554 466) 0.610052
+********************* run zero-copy model     ***************************************
+person @ (208 238 287 511) 0.876641
+person @ (480 240 559 525) 0.867932
+person @ (108 233 230 535) 0.856740
+bus @ (91 127 554 466) 0.610052
+```
+
+- The inference results in the three scenarios should be the same.
+- The average time-consuming in the three scenarios should be gradually reduced, and the zero-copy time-consuming is the least.
+- Different platforms, different versions of tools and drivers may have slightly different results.

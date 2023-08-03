@@ -27,3 +27,6 @@ cmake .. \
 make -j4
 make install
 cd -
+
+cp run_rk180x.sh install/rknn_mobilenet_demo/
+cp run_rv1109_rv1126.sh install/rknn_mobilenet_demo/

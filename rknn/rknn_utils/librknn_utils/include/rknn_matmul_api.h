@@ -53,13 +53,15 @@ typedef uint64_t rknn_context;
     Definition of handle for rknn_matmul_run.
 */
 typedef struct _rknn_matmul_t{
-    void*               A;     
-    void*               B;        
+    void*               A;
+    void*               B;
     int32_t             M;                  /* the low rank dimension of A */
     int32_t             K;                  /* the high rank dimension of A and B*/
     int32_t             N;                  /* the low rank dimension of B */
     rknn_tensor_type    in_dtype;           /* the input buffer type */
     rknn_context        rknn_ctx;           /* rknn context handle */
+    int8_t transposeA;                      /* the flag whether A is transpose. */
+    int8_t transposeB;                      /* the flag whether B is transpose. */
 } rknn_matmul_t;
 
 typedef rknn_matmul_t* rknn_matmul_handle_t;
@@ -80,13 +82,39 @@ typedef rknn_matmul_t* rknn_matmul_handle_t;
 */
 rknn_matmul_handle_t rknn_matmul_load(void *a, void *b, int M, int K, int N, rknn_tensor_type dtype);
 
+/*  rknn_matmul_load2
+
+    load input buffer and initial the context, the transposeB flag is false, the transposeB flag is true.
+
+    [input]:
+        void* a                             the pointer of A Matrix buffer, number of element is K*M, alloced by user.
+        void* b                             the pointer to B Matrix buffer, number of element is K*N, alloced by user.
+        int32_t M                           the low rank dimension of A
+        int32_t K                           the high rank dimension of A
+        int32_t N                           the low rank dimension of B
+        rknn_tensor_type dtype;             the input buffer type, now only support RKNN_TENSOR_UINT8 and RKNN_TENSOR_INT8.
+        int8_t transposeA;                  the flag whether A is transpose.
+        int8_t transposeB;                  the flag whether B is transpose,
+                                            if transposeB = 1, B shape is [N,K],
+                                            if transposeB = 0, B shape is [K,N].
+    [output]:
+        rknn_matmul_handle_t                the handle of mamul. it will return NULL if failed.
+*/
+rknn_matmul_handle_t rknn_matmul_load2(void* a,
+                                       void* b,
+                                       int M,
+                                       int K,
+                                       int N,
+                                       rknn_tensor_type dtype,
+                                       int8_t transposeA,
+                                       int8_t transposeB);
 /*  rknn_matmul_run
 
     run Matmul with fixed shape.
 
     [input]:
         rknn_matmul_handle_t matmul_handle  the handle of mamul, get by rknn_matmul_load.
-        float *c                            the pointer of C Matrix buffer, number of element is 256x4096, alloced by user. 
+        float *c                            the pointer of C Matrix buffer, number of element is 256x4096, alloced by user.
     [output]:
         int                                 error code.
 */
